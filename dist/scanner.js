@@ -9,7 +9,8 @@ import { extractGoErrors } from "./extractors/go.js";
 import { extractKotlinErrors } from "./extractors/kotlin.js";
 import { extractSwiftErrors } from "./extractors/swift.js";
 import { extractTypeScriptErrors } from "./extractors/typescript.js";
-import { buildTypeScriptFactories, buildTypeScriptStaticValues, } from "./extractors/typescript-symbols.js";
+import { buildTypeScriptFactories, buildTypeScriptStaticAnalysis, } from "./extractors/typescript-symbols.js";
+import { loadTypeScriptProjectResolution, resolveTypeScriptImport, typeScriptImportSpecifiers, } from "./extractors/typescript-project.js";
 export async function scanProject(root, config, options = {}) {
     const absoluteRoot = path.resolve(root);
     const files = await fg(config.include, {
@@ -26,10 +27,11 @@ export async function scanProject(root, config, options = {}) {
         return { filename, source };
     }));
     const typescriptSources = sources.filter(({ filename }) => /\.[jt]sx?$/.test(filename));
-    const staticValues = buildTypeScriptStaticValues(typescriptSources);
-    const factories = buildTypeScriptFactories(typescriptSources, config.constructors.typescript);
+    const projectResolution = await loadTypeScriptProjectResolution(absoluteRoot, config.typescript);
+    const staticAnalysis = buildTypeScriptStaticAnalysis(typescriptSources, projectResolution);
+    const factories = buildTypeScriptFactories(typescriptSources, config.constructors.typescript, projectResolution);
     const selectedFiles = options.changedFiles?.length
-        ? affectedFiles(absoluteRoot, sources, options.changedFiles, options.affectedImportHops ?? 2)
+        ? affectedFiles(absoluteRoot, sources, options.changedFiles, options.affectedImportHops ?? 2, projectResolution)
         : new Set(sources.map(({ filename }) => path.resolve(filename)));
     const selectedSources = sources.filter(({ filename }) => selectedFiles.has(path.resolve(filename)));
     const detected = await Promise.all(selectedSources.map(async ({ filename, source }) => {
@@ -89,18 +91,26 @@ export async function scanProject(root, config, options = {}) {
                 constructors: config.constructors.kotlin,
             });
         }
-        const fileStaticValues = staticValues.get(path.resolve(filename));
+        const fileStaticAnalysis = staticAnalysis.get(path.resolve(filename));
         const fileFactories = factories.get(path.resolve(filename));
         return extractTypeScriptErrors({
             root: absoluteRoot,
             filename,
             source,
             constructors: config.constructors.typescript,
-            ...(fileStaticValues ? { staticValues: fileStaticValues } : {}),
+            ...(fileStaticAnalysis
+                ? {
+                    staticValues: fileStaticAnalysis.values,
+                    staticEvidence: fileStaticAnalysis.evidence,
+                }
+                : {}),
             ...(fileFactories ? { factories: fileFactories } : {}),
         });
     }));
-    const errors = detected.flat().sort(compareDetectedErrors);
+    const errors = detected
+        .flat()
+        .map((error) => ensureEvidence(error))
+        .sort(compareDetectedErrors);
     return {
         root: absoluteRoot,
         filesScanned: selectedSources.length,
@@ -108,20 +118,37 @@ export async function scanProject(root, config, options = {}) {
         diagnostics: analyzeDetections(errors),
     };
 }
-function affectedFiles(root, sources, changedFiles, maxHops) {
+function ensureEvidence(error) {
+    if (error.evidence?.steps.length)
+        return error;
+    return {
+        ...error,
+        evidence: {
+            confidence: error.structured ? "proven" : "partial",
+            steps: [
+                {
+                    kind: "syntax",
+                    file: error.location.file,
+                    symbol: error.constructor,
+                },
+            ],
+        },
+    };
+}
+function affectedFiles(root, sources, changedFiles, maxHops, projectResolution) {
     const known = new Set(sources.map(({ filename }) => path.resolve(filename)));
     const changed = new Set(changedFiles.map((filename) => path.resolve(root, filename.split("/").join(path.sep))));
     const reverseImports = new Map();
     for (const source of sources) {
         if (!/\.[jt]sx?$/.test(source.filename))
             continue;
-        for (const specifier of relativeSpecifiers(source.source)) {
-            const target = resolveSourceImport(source.filename, specifier, known);
+        for (const specifier of typeScriptImportSpecifiers(source.source)) {
+            const target = resolveTypeScriptImport(source.filename, specifier, known, projectResolution);
             if (!target)
                 continue;
-            const importers = reverseImports.get(target) ?? new Set();
+            const importers = reverseImports.get(target.filename) ?? new Set();
             importers.add(path.resolve(source.filename));
-            reverseImports.set(target, importers);
+            reverseImports.set(target.filename, importers);
         }
     }
     const affected = new Set([...changed].filter((filename) => known.has(filename)));
@@ -141,25 +168,6 @@ function affectedFiles(root, sources, changedFiles, maxHops) {
             break;
     }
     return affected;
-}
-function relativeSpecifiers(source) {
-    const specifiers = [];
-    const pattern = /(?:\bfrom\s+|\bimport\s*)(["'])(\.[^"']+)\1/g;
-    for (const match of source.matchAll(pattern)) {
-        if (match[2])
-            specifiers.push(match[2]);
-    }
-    return specifiers;
-}
-function resolveSourceImport(filename, specifier, known) {
-    const base = path.resolve(path.dirname(filename), specifier);
-    const extensions = [".ts", ".tsx", ".js", ".jsx"];
-    const candidates = [
-        base,
-        ...extensions.map((extension) => `${base}${extension}`),
-        ...extensions.map((extension) => path.join(base, `index${extension}`)),
-    ];
-    return candidates.find((candidate) => known.has(candidate)) ?? null;
 }
 export function analyzeDetections(errors) {
     const diagnostics = errors

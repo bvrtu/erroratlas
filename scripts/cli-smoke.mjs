@@ -34,9 +34,17 @@ try {
   );
 
   const clean = await run("check", root, "--format", "json");
+  const cleanReport = JSON.parse(clean.stdout);
   assert(
-    JSON.parse(clean.stdout).diagnostics.length === 1,
+    cleanReport.diagnostics.length === 1,
     "empty resolution should be a note",
+  );
+  assert(
+    cleanReport.errors[0].evidence?.confidence === "proven" &&
+      cleanReport.errors[0].evidence.steps.some(
+        (step) => step.kind === "syntax" && step.file === "src/service.ts",
+      ),
+    "JSON output should expose a machine-readable evidence chain",
   );
 
   await writeFile(

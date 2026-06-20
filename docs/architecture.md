@@ -28,14 +28,18 @@ framework ──► thin adapter ──────────┘
 ErrorAtlas records a value only when it is a literal or can be reached through a deterministic chain. TypeScript/JavaScript analysis supports:
 
 - immutable local aliases, object members, and explicitly initialized enum members;
+- immutable object destructuring with static keys and no rest/default/computed binding;
 - relative named, default, and namespace imports;
+- opt-in project-root-confined `baseUrl`/`paths` and declared workspace package imports;
 - named re-exports and `export *` chains;
 - at most two cross-file edges from use site to definition;
-- direct factories and at most two factory-wrapper calls;
-- factory arguments that substitute exact parameter references;
+- direct factories and at most three factory-wrapper calls;
+- factory object arguments, destructured parameters, and statically proven defaults;
 - `.ts`, `.tsx`, `.js`, `.jsx`, and directory `index` resolution.
 
-It intentionally does not evaluate computed properties, mutation, function execution, package imports, TypeScript path aliases, conditional values, template interpolation, ambiguous wildcard exports, or chains beyond those bounds. Insufficient proof becomes `null`/unstructured and produces a diagnostic. It is never promoted to a fact.
+Project import resolution is disabled unless `typescript.resolveProjectImports` is true. Enabled resolution accepts JSONC config, local `extends` chains up to four files, single-wildcard path rules, `baseUrl`, and root `package.json` workspaces. Configs, targets, manifests, and resolved files must remain inside the ErrorAtlas project root. Package-based tsconfig presets, multiple-wildcard rules, undeclared packages, and ambiguous matches are rejected or left unresolved.
+
+It intentionally does not evaluate computed properties, rest destructuring, mutable object members, reassigned bindings, function execution, conditional values, template interpolation, ambiguous wildcard exports, or chains beyond those bounds. Insufficient proof becomes `null`/unstructured and produces a diagnostic. It is never promoted to a fact.
 
 Other language packs use AST-matched constructor and response profiles. They remain syntax-directed and do not claim whole-program symbol resolution.
 
@@ -45,7 +49,9 @@ Incremental scanning extracts only changed files and reverse importers up to the
 
 The normalized definition contains code, message, status, constructor, language, flow, location, and optional RFC 9457 problem details. Source owns machine facts. The committed catalog owns human-authored `description` and `resolution`. Regeneration preserves those fields.
 
-Catalog schema v2 adds optional `problem` data. Readers accept v1 and v2. A v1 catalog is not failed for missing problem fields; the next `generate` migrates it to v2 while preserving authored text.
+Every scanner-produced occurrence includes an `evidence` object. `confidence` is `proven` when a static identity was established and `partial` when only the error occurrence was proven. Ordered steps describe syntax, literal, alias/member, import/re-export, and factory proof without storing source text or literal values. Evidence is included in JSON scan output and catalog occurrences but omitted from human Markdown.
+
+Catalog schema v2 adds optional `problem` and occurrence `evidence` data. Readers accept v1 and v2, and evidence remains optional for existing v2 files. A v1 catalog is not failed for missing problem fields; the next `generate` migrates it to v2 while preserving authored text.
 
 ## Policy and mutation
 

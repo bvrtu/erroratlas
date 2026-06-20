@@ -2,13 +2,11 @@
 
 These are release-sized, issue-ready tasks rather than open-ended TODOs.
 
-## Milestone 0.5 — extraction confidence
+## 0.5 — extraction confidence
 
-1. Add TypeScript `paths`/workspace package resolution behind an explicit project-config flag; fixture monorepos must prove no package-boundary leakage.
-2. Add destructured immutable object-member resolution; reject rest/spread, reassignment, and computed keys with negative fixtures.
-3. Add factory composition for object arguments and default parameters while retaining the two-call bound.
-4. Attach a machine-readable confidence/evidence chain to each normalized occurrence and surface it in JSON output.
-5. Build a file-based fixture corpus for all nine supported languages, with framework-version labels and paired negative/noise cases for every extractor profile.
+Implemented: opt-in root-confined TypeScript paths/workspaces, immutable destructuring, object/default factory composition with a three-wrapper bound, and occurrence evidence chains.
+
+The remaining issue before broad 1.0 confidence claims is to build a file-based fixture corpus for all nine supported languages, with framework-version labels and paired negative/noise cases for every extractor profile.
 
 ## Milestone 0.6 — adapters and runtime correlation
 

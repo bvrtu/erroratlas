@@ -11,8 +11,14 @@ import { extractSwiftErrors } from "./extractors/swift.js";
 import { extractTypeScriptErrors } from "./extractors/typescript.js";
 import {
   buildTypeScriptFactories,
-  buildTypeScriptStaticValues,
+  buildTypeScriptStaticAnalysis,
 } from "./extractors/typescript-symbols.js";
+import {
+  loadTypeScriptProjectResolution,
+  resolveTypeScriptImport,
+  typeScriptImportSpecifiers,
+  type TypeScriptProjectResolution,
+} from "./extractors/typescript-project.js";
 import type {
   DetectedError,
   Diagnostic,
@@ -50,10 +56,18 @@ export async function scanProject(
   const typescriptSources = sources.filter(({ filename }) =>
     /\.[jt]sx?$/.test(filename),
   );
-  const staticValues = buildTypeScriptStaticValues(typescriptSources);
+  const projectResolution = await loadTypeScriptProjectResolution(
+    absoluteRoot,
+    config.typescript,
+  );
+  const staticAnalysis = buildTypeScriptStaticAnalysis(
+    typescriptSources,
+    projectResolution,
+  );
   const factories = buildTypeScriptFactories(
     typescriptSources,
     config.constructors.typescript,
+    projectResolution,
   );
 
   const selectedFiles = options.changedFiles?.length
@@ -62,6 +76,7 @@ export async function scanProject(
         sources,
         options.changedFiles,
         options.affectedImportHops ?? 2,
+        projectResolution,
       )
     : new Set(sources.map(({ filename }) => path.resolve(filename)));
   const selectedSources = sources.filter(({ filename }) =>
@@ -126,20 +141,28 @@ export async function scanProject(
           constructors: config.constructors.kotlin,
         });
       }
-      const fileStaticValues = staticValues.get(path.resolve(filename));
+      const fileStaticAnalysis = staticAnalysis.get(path.resolve(filename));
       const fileFactories = factories.get(path.resolve(filename));
       return extractTypeScriptErrors({
         root: absoluteRoot,
         filename,
         source,
         constructors: config.constructors.typescript,
-        ...(fileStaticValues ? { staticValues: fileStaticValues } : {}),
+        ...(fileStaticAnalysis
+          ? {
+              staticValues: fileStaticAnalysis.values,
+              staticEvidence: fileStaticAnalysis.evidence,
+            }
+          : {}),
         ...(fileFactories ? { factories: fileFactories } : {}),
       });
     }),
   );
 
-  const errors = detected.flat().sort(compareDetectedErrors);
+  const errors = detected
+    .flat()
+    .map((error) => ensureEvidence(error))
+    .sort(compareDetectedErrors);
   return {
     root: absoluteRoot,
     filesScanned: selectedSources.length,
@@ -148,11 +171,29 @@ export async function scanProject(
   };
 }
 
+function ensureEvidence(error: DetectedError): DetectedError {
+  if (error.evidence?.steps.length) return error;
+  return {
+    ...error,
+    evidence: {
+      confidence: error.structured ? "proven" : "partial",
+      steps: [
+        {
+          kind: "syntax",
+          file: error.location.file,
+          symbol: error.constructor,
+        },
+      ],
+    },
+  };
+}
+
 function affectedFiles(
   root: string,
   sources: Array<{ filename: string; source: string }>,
   changedFiles: string[],
   maxHops: number,
+  projectResolution: TypeScriptProjectResolution | null,
 ): Set<string> {
   const known = new Set(sources.map(({ filename }) => path.resolve(filename)));
   const changed = new Set(
@@ -164,12 +205,18 @@ function affectedFiles(
 
   for (const source of sources) {
     if (!/\.[jt]sx?$/.test(source.filename)) continue;
-    for (const specifier of relativeSpecifiers(source.source)) {
-      const target = resolveSourceImport(source.filename, specifier, known);
+    for (const specifier of typeScriptImportSpecifiers(source.source)) {
+      const target = resolveTypeScriptImport(
+        source.filename,
+        specifier,
+        known,
+        projectResolution,
+      );
       if (!target) continue;
-      const importers = reverseImports.get(target) ?? new Set<string>();
+      const importers =
+        reverseImports.get(target.filename) ?? new Set<string>();
       importers.add(path.resolve(source.filename));
-      reverseImports.set(target, importers);
+      reverseImports.set(target.filename, importers);
     }
   }
 
@@ -190,30 +237,6 @@ function affectedFiles(
     if (frontier.size === 0) break;
   }
   return affected;
-}
-
-function relativeSpecifiers(source: string): string[] {
-  const specifiers: string[] = [];
-  const pattern = /(?:\bfrom\s+|\bimport\s*)(["'])(\.[^"']+)\1/g;
-  for (const match of source.matchAll(pattern)) {
-    if (match[2]) specifiers.push(match[2]);
-  }
-  return specifiers;
-}
-
-function resolveSourceImport(
-  filename: string,
-  specifier: string,
-  known: Set<string>,
-): string | null {
-  const base = path.resolve(path.dirname(filename), specifier);
-  const extensions = [".ts", ".tsx", ".js", ".jsx"];
-  const candidates = [
-    base,
-    ...extensions.map((extension) => `${base}${extension}`),
-    ...extensions.map((extension) => path.join(base, `index${extension}`)),
-  ];
-  return candidates.find((candidate) => known.has(candidate)) ?? null;
 }
 
 export function analyzeDetections(errors: DetectedError[]): Diagnostic[] {

@@ -152,6 +152,10 @@ const DEFAULTS: Omit<ErrorAtlasConfig, "constructors"> = {
   openapi: null,
   baseline: null,
   fix: { codePrefix: null },
+  typescript: {
+    resolveProjectImports: false,
+    tsconfig: "tsconfig.json",
+  },
   failOn: "error",
 };
 
@@ -164,6 +168,7 @@ export function defaultRawConfig(): RawConfig {
     openapi: DEFAULTS.openapi,
     baseline: DEFAULTS.baseline,
     fix: DEFAULTS.fix,
+    typescript: DEFAULTS.typescript,
     failOn: DEFAULTS.failOn,
     useDefaultConstructors: true,
     constructors: {
@@ -226,6 +231,12 @@ export async function loadConfig(root: string): Promise<ErrorAtlasConfig> {
     fix: {
       codePrefix: raw.fix?.codePrefix ?? DEFAULTS.fix.codePrefix,
     },
+    typescript: {
+      resolveProjectImports:
+        raw.typescript?.resolveProjectImports ??
+        DEFAULTS.typescript.resolveProjectImports,
+      tsconfig: raw.typescript?.tsconfig ?? DEFAULTS.typescript.tsconfig,
+    },
     failOn: raw.failOn ?? DEFAULTS.failOn,
     constructors,
   };
@@ -250,6 +261,26 @@ function validateRawConfig(config: RawConfig): void {
     !/^[A-Z][A-Z0-9_]*$/.test(config.fix.codePrefix)
   ) {
     throw new Error('"fix.codePrefix" must be an uppercase code namespace.');
+  }
+  if (
+    config.typescript?.resolveProjectImports !== undefined &&
+    typeof config.typescript.resolveProjectImports !== "boolean"
+  ) {
+    throw new Error('"typescript.resolveProjectImports" must be a boolean.');
+  }
+  if (config.typescript?.tsconfig !== undefined) {
+    const filename = config.typescript.tsconfig;
+    if (
+      typeof filename !== "string" ||
+      !filename.trim() ||
+      path.isAbsolute(filename) ||
+      path.win32.isAbsolute(filename) ||
+      filename.split(/[\\/]/).includes("..")
+    ) {
+      throw new Error(
+        '"typescript.tsconfig" must be a non-empty project-relative path.',
+      );
+    }
   }
 
   for (const language of [

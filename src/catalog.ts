@@ -56,6 +56,7 @@ export function buildCatalog(
           language: item.language,
           constructor: item.constructor,
           ...(item.flow ? { flow: item.flow } : {}),
+          ...(item.evidence ? { evidence: item.evidence } : {}),
         })),
       };
     })
