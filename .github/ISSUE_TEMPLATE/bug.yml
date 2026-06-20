@@ -1,0 +1,43 @@
+name: Bug report
+description: Report an incorrect finding, crash, or unexpected CLI behavior.
+title: "bug: "
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve ErrorAtlas. Remove private code and secrets from examples.
+  - type: textarea
+    id: example
+    attributes:
+      label: Minimal source example
+      description: Show the smallest throw or raise statement that reproduces the problem.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include console output with secrets and private paths removed.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ErrorAtlas version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and operating system
+      placeholder: Node.js 22.15.0, Ubuntu 24.04
+    validations:
+      required: true

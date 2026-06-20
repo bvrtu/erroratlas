@@ -1,0 +1,35 @@
+name: Feature request
+description: Propose a language, framework, rule, or workflow improvement.
+title: "feat: "
+labels: [enhancement, triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What documentation or error-contract problem should ErrorAtlas solve?
+    validations:
+      required: true
+  - type: textarea
+    id: syntax
+    attributes:
+      label: Real-world syntax
+      description: Show a minimal public example of the error pattern, if relevant.
+      render: text
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe expected detections, output, and false-positive boundaries.
+    validations:
+      required: true
+  - type: dropdown
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - I can open a pull request
+        - I can help test the change
+        - I am only proposing the idea
+    validations:
+      required: true
