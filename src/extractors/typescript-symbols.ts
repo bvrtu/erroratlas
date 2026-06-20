@@ -1,11 +1,21 @@
 import path from "node:path";
 import { Lang, parse } from "@ast-grep/napi";
 import type { SgNode } from "@ast-grep/napi";
-import type { ConstructorSpec } from "../types.js";
+import type { ConstructorSpec, EvidenceKind, EvidenceStep } from "../types.js";
 import { literalNumber, literalString } from "./shared.js";
+import {
+  resolveTypeScriptImport,
+  type TypeScriptProjectResolution,
+} from "./typescript-project.js";
 
 export type StaticValue = string | number;
 export type StaticValues = ReadonlyMap<string, StaticValue>;
+export type StaticEvidence = ReadonlyMap<string, EvidenceStep[]>;
+
+export interface TypeScriptStaticAnalysis {
+  values: Map<string, StaticValue>;
+  evidence: Map<string, EvidenceStep[]>;
+}
 
 export interface TypeScriptSource {
   filename: string;
@@ -14,9 +24,23 @@ export interface TypeScriptSource {
 
 export interface TypeScriptFactory {
   name: string;
-  parameters: string[];
+  parameters: TypeScriptFactoryParameter[];
   arguments: string[];
   spec: ConstructorSpec;
+  evidence: EvidenceStep[];
+}
+
+export interface TypeScriptFactoryParameter {
+  kind: "identifier" | "object";
+  local?: string;
+  defaultValue?: string;
+  properties?: TypeScriptFactoryProperty[];
+}
+
+export interface TypeScriptFactoryProperty {
+  key: string;
+  local: string;
+  defaultValue?: string;
 }
 
 interface ImportBinding {
@@ -32,7 +56,7 @@ interface ExportBinding {
 }
 
 interface RawFactory {
-  parameters: string[];
+  parameters: TypeScriptFactoryParameter[];
   arguments: string[];
   callee: string;
 }
@@ -40,25 +64,38 @@ interface RawFactory {
 interface FileSymbols {
   filename: string;
   expressions: Map<string, string>;
+  expressionKinds: Map<string, EvidenceKind>;
   exports: Map<string, ExportBinding>;
   wildcardExports: string[];
   imports: ImportBinding[];
   factories: Map<string, RawFactory>;
+  projectResolution: TypeScriptProjectResolution | null;
 }
 
-const EXTENSIONS = [".ts", ".tsx", ".js", ".jsx"];
 export const MAX_CROSS_FILE_HOPS = 2;
 const MAX_LOCAL_ALIAS_HOPS = 8;
-const MAX_FACTORY_HOPS = 2;
+const MAX_FACTORY_HOPS = 3;
 
 export function buildTypeScriptStaticValues(
   files: TypeScriptSource[],
+  projectResolution: TypeScriptProjectResolution | null = null,
 ): Map<string, Map<string, StaticValue>> {
-  const symbols = collectProjectSymbols(files);
+  return new Map(
+    [...buildTypeScriptStaticAnalysis(files, projectResolution)].map(
+      ([filename, analysis]) => [filename, analysis.values],
+    ),
+  );
+}
+
+export function buildTypeScriptStaticAnalysis(
+  files: TypeScriptSource[],
+  projectResolution: TypeScriptProjectResolution | null = null,
+): Map<string, TypeScriptStaticAnalysis> {
+  const symbols = collectProjectSymbols(files, projectResolution);
   return new Map(
     [...symbols].map(([filename, file]) => [
       filename,
-      materializeStaticValues(file, symbols),
+      materializeStaticAnalysis(file, symbols),
     ]),
   );
 }
@@ -66,8 +103,9 @@ export function buildTypeScriptStaticValues(
 export function buildTypeScriptFactories(
   files: TypeScriptSource[],
   constructors: ConstructorSpec[],
+  projectResolution: TypeScriptProjectResolution | null = null,
 ): Map<string, Map<string, TypeScriptFactory>> {
-  const symbols = collectProjectSymbols(files);
+  const symbols = collectProjectSymbols(files, projectResolution);
   const constructorMap = new Map(
     constructors.map((constructor) => [constructor.name, constructor]),
   );
@@ -131,16 +169,24 @@ export function evaluateStatic(
 
 function collectProjectSymbols(
   files: TypeScriptSource[],
+  projectResolution: TypeScriptProjectResolution | null,
 ): Map<string, FileSymbols> {
   return new Map(
-    files.map((file) => [path.resolve(file.filename), collectSymbols(file)]),
+    files.map((file) => [
+      path.resolve(file.filename),
+      collectSymbols(file, projectResolution),
+    ]),
   );
 }
 
-function collectSymbols(file: TypeScriptSource): FileSymbols {
+function collectSymbols(
+  file: TypeScriptSource,
+  projectResolution: TypeScriptProjectResolution | null,
+): FileSymbols {
   const language = /\.[jt]sx$/.test(file.filename) ? Lang.Tsx : Lang.TypeScript;
   const tree = parse(language, file.source).root();
   const expressions = new Map<string, string>();
+  const expressionKinds = new Map<string, EvidenceKind>();
   const exports = new Map<string, ExportBinding>();
   const wildcardExports: string[] = [];
   const imports: ImportBinding[] = [];
@@ -149,11 +195,23 @@ function collectSymbols(file: TypeScriptSource): FileSymbols {
   for (const node of tree.findAll({
     rule: { pattern: "const $NAME = $VALUE" },
   })) {
-    const name = node.getMatch("NAME")?.text();
+    const nameNode = node.getMatch("NAME");
     const valueNode = node.getMatch("VALUE");
-    if (!name || !valueNode) continue;
+    if (!nameNode || !valueNode) continue;
+    if (nameNode.kind() === "object_pattern") {
+      collectDestructuredMembers(
+        nameNode,
+        valueNode,
+        expressions,
+        expressionKinds,
+      );
+      continue;
+    }
+    const name = nameNode.text();
+    if (!/^[$A-Z_a-z][$\w]*$/.test(name)) continue;
     expressions.set(name, valueNode.text());
-    collectObjectMembers(name, valueNode, expressions);
+    expressionKinds.set(name, "local-alias");
+    collectObjectMembers(name, valueNode, expressions, expressionKinds);
     if (node.parent()?.kind() === "export_statement") {
       exports.set(name, { local: name });
     }
@@ -169,6 +227,8 @@ function collectSymbols(file: TypeScriptSource): FileSymbols {
       const value = assignment.field("value")?.text();
       if (member && value !== undefined)
         expressions.set(`${name}.${member}`, value);
+      if (member && value !== undefined)
+        expressionKinds.set(`${name}.${member}`, "enum-member");
     }
     if (node.parent()?.kind() === "export_statement") {
       exports.set(name, { local: name });
@@ -178,7 +238,13 @@ function collectSymbols(file: TypeScriptSource): FileSymbols {
   collectFactories(tree, factories);
 
   for (const node of tree.findAll({ rule: { kind: "export_statement" } })) {
-    parseExport(node.text(), exports, wildcardExports, expressions);
+    parseExport(
+      node.text(),
+      exports,
+      wildcardExports,
+      expressions,
+      expressionKinds,
+    );
   }
 
   for (const node of tree.findAll({ rule: { kind: "import_statement" } })) {
@@ -188,10 +254,12 @@ function collectSymbols(file: TypeScriptSource): FileSymbols {
   return {
     filename: path.resolve(file.filename),
     expressions,
+    expressionKinds,
     exports,
     wildcardExports,
     imports,
     factories,
+    projectResolution,
   };
 }
 
@@ -199,7 +267,11 @@ function collectObjectMembers(
   name: string,
   valueNode: SgNode,
   expressions: Map<string, string>,
+  expressionKinds: Map<string, EvidenceKind>,
 ): void {
+  const immutable = /\bas\s+const\s*$/.test(valueNode.text().trim());
+  const frozen = /^Object\.freeze\s*\(/.test(valueNode.text().trim());
+  if (!immutable && !frozen) return;
   const object =
     valueNode.kind() === "object"
       ? valueNode
@@ -213,7 +285,32 @@ function collectObjectMembers(
       ?.text()
       .replace(/^["']|["']$/g, "");
     const value = pair.field("value")?.text();
-    if (key && value !== undefined) expressions.set(`${name}.${key}`, value);
+    if (key && value !== undefined) {
+      expressions.set(`${name}.${key}`, value);
+      expressionKinds.set(`${name}.${key}`, "object-member");
+    }
+  }
+}
+
+function collectDestructuredMembers(
+  pattern: SgNode,
+  valueNode: SgNode,
+  expressions: Map<string, string>,
+  expressionKinds: Map<string, EvidenceKind>,
+): void {
+  const source = normalizeExpression(valueNode.text());
+  const inline = objectExpressionProperties(source);
+  if (!inline && !/^[$A-Z_a-z][$\w]*(?:\.[$A-Z_a-z][$\w]*)*$/.test(source)) {
+    return;
+  }
+  const properties = destructuredProperties(pattern);
+  if (!properties) return;
+  for (const property of properties) {
+    const expression = inline?.get(property.key) ?? `${source}.${property.key}`;
+    if (expression !== undefined) {
+      expressions.set(property.local, expression);
+      expressionKinds.set(property.local, "destructured-member");
+    }
   }
 }
 
@@ -231,8 +328,15 @@ function collectFactories(
       const name = node.getMatch("FACTORY")?.text();
       const callee = node.getMatch("CALLEE")?.text();
       if (!name || !callee) continue;
+      const parameters = namedMatches(node, "PARAMS").map(
+        parseFactoryParameter,
+      );
+      if (parameters.some((parameter) => parameter === null)) continue;
       factories.set(name, {
-        parameters: namedMatches(node, "PARAMS").map((item) => item.text()),
+        parameters: parameters.filter(
+          (parameter): parameter is TypeScriptFactoryParameter =>
+            parameter !== null,
+        ),
         arguments: namedMatches(node, "ARGS").map((item) => item.text()),
         callee,
       });
@@ -245,6 +349,7 @@ function parseExport(
   exports: Map<string, ExportBinding>,
   wildcardExports: string[],
   expressions: Map<string, string>,
+  expressionKinds: Map<string, EvidenceKind>,
 ): void {
   const defaultDeclaration = statement.match(
     /^export\s+default\s+(?:async\s+)?(?:function|class)\s+([\w$]+)/,
@@ -257,7 +362,7 @@ function parseExport(
   if (declaration) exports.set(declaration, { local: declaration });
 
   const source = statement.match(/\bfrom\s+(["'])(.*?)\1/)?.[2];
-  if (source?.startsWith(".") && /^export\s+\*/.test(statement.trim())) {
+  if (source && /^export\s+\*/.test(statement.trim())) {
     wildcardExports.push(source);
     return;
   }
@@ -270,9 +375,7 @@ function parseExport(
       const exported = match[2] ?? match[1];
       exports.set(
         exported,
-        source?.startsWith(".")
-          ? { imported: match[1], source }
-          : { local: match[1] },
+        source ? { imported: match[1], source } : { local: match[1] },
       );
     }
   }
@@ -283,13 +386,14 @@ function parseExport(
   if (defaultExpression && !/^(?:function|class)\b/.test(defaultExpression)) {
     const local = "__erroratlas_default__";
     expressions.set(local, defaultExpression.replace(/;$/, ""));
+    expressionKinds.set(local, "local-alias");
     exports.set("default", { local });
   }
 }
 
 function parseImports(statement: string): ImportBinding[] {
   const source = statement.match(/\bfrom\s+(["'])(.*?)\1/)?.[2];
-  if (!source?.startsWith(".")) return [];
+  if (!source) return [];
   const bindings: ImportBinding[] = [];
   const named = statement.match(/import\s*{([^}]+)}/s)?.[1];
   if (named) {
@@ -316,11 +420,12 @@ function parseImports(statement: string): ImportBinding[] {
   return bindings;
 }
 
-function materializeStaticValues(
+function materializeStaticAnalysis(
   file: FileSymbols,
   files: Map<string, FileSymbols>,
-): Map<string, StaticValue> {
+): TypeScriptStaticAnalysis {
   const values = new Map<string, StaticValue>();
+  const evidence = new Map<string, EvidenceStep[]>();
   const candidates = new Set(file.expressions.keys());
 
   for (const binding of file.imports) {
@@ -353,7 +458,7 @@ function materializeStaticValues(
   }
 
   for (const candidate of candidates) {
-    const value = resolveStatic(
+    const resolved = resolveStatic(
       file,
       candidate,
       files,
@@ -361,9 +466,17 @@ function materializeStaticValues(
       MAX_LOCAL_ALIAS_HOPS,
       new Set(),
     );
-    if (value !== null) values.set(candidate, value);
+    if (resolved !== null) {
+      values.set(candidate, resolved.value);
+      evidence.set(candidate, resolved.evidence);
+    }
   }
-  return values;
+  return { values, evidence };
+}
+
+interface ResolvedStatic {
+  value: StaticValue;
+  evidence: EvidenceStep[];
 }
 
 function resolveStatic(
@@ -373,10 +486,15 @@ function resolveStatic(
   crossFileHops: number,
   localHops: number,
   seen: Set<string>,
-): StaticValue | null {
+): ResolvedStatic | null {
   const normalized = normalizeExpression(expression);
   const literal = literalString(normalized) ?? literalNumberOrNull(normalized);
-  if (literal !== null) return literal;
+  if (literal !== null) {
+    return {
+      value: literal,
+      evidence: [{ kind: "literal", file: file.filename }],
+    };
+  }
   if (localHops < 0) return null;
   const key = `${file.filename}:${normalized}:${crossFileHops}`;
   if (seen.has(key)) return null;
@@ -384,7 +502,7 @@ function resolveStatic(
 
   const localExpression = file.expressions.get(normalized);
   if (localExpression !== undefined) {
-    return resolveStatic(
+    const resolved = resolveStatic(
       file,
       localExpression,
       files,
@@ -392,17 +510,35 @@ function resolveStatic(
       localHops - 1,
       nextSeen,
     );
+    return resolved
+      ? {
+          value: resolved.value,
+          evidence: [
+            {
+              kind: file.expressionKinds.get(normalized) ?? "local-alias",
+              file: file.filename,
+              symbol: normalized,
+            },
+            ...resolved.evidence,
+          ],
+        }
+      : null;
   }
 
   for (const binding of file.imports) {
     if (crossFileHops <= 0) continue;
-    const importedFile = resolveImport(file.filename, binding.source, files);
-    if (!importedFile) continue;
+    const imported = resolveImportWithKind(
+      file.filename,
+      binding.source,
+      files,
+    );
+    if (!imported) continue;
+    const importedFile = imported.file;
     if (
       binding.imported === "*" &&
       normalized.startsWith(`${binding.local}.`)
     ) {
-      return resolveExportStatic(
+      const resolved = resolveExportStatic(
         importedFile,
         normalized.slice(binding.local.length + 1),
         files,
@@ -410,13 +546,14 @@ function resolveStatic(
         localHops,
         nextSeen,
       );
+      return prependImportEvidence(resolved, file, binding, imported.kind);
     }
     if (
       binding.imported !== "*" &&
       (normalized === binding.local ||
         normalized.startsWith(`${binding.local}.`))
     ) {
-      return resolveExportStatic(
+      const resolved = resolveExportStatic(
         importedFile,
         `${binding.imported}${normalized.slice(binding.local.length)}`,
         files,
@@ -424,6 +561,7 @@ function resolveStatic(
         localHops,
         nextSeen,
       );
+      return prependImportEvidence(resolved, file, binding, imported.kind);
     }
   }
   return null;
@@ -436,7 +574,7 @@ function resolveExportStatic(
   crossFileHops: number,
   localHops: number,
   seen: Set<string>,
-): StaticValue | null {
+): ResolvedStatic | null {
   const [base = "", ...suffixParts] = exportedPath.split(".");
   const suffix = suffixParts.length ? `.${suffixParts.join(".")}` : "";
   const binding = file.exports.get(base);
@@ -451,10 +589,10 @@ function resolveExportStatic(
     );
   }
   if (binding?.source && binding.imported && crossFileHops > 0) {
-    const target = resolveImport(file.filename, binding.source, files);
-    return target
+    const target = resolveImportWithKind(file.filename, binding.source, files);
+    const resolved = target
       ? resolveExportStatic(
-          target,
+          target.file,
           `${binding.imported}${suffix}`,
           files,
           crossFileHops - 1,
@@ -462,24 +600,41 @@ function resolveExportStatic(
           seen,
         )
       : null;
+    return prependReExportEvidence(resolved, file, binding.source, false);
   }
 
   if (crossFileHops <= 0) return null;
   const matches = file.wildcardExports
-    .map((source) => resolveImport(file.filename, source, files))
-    .filter((target): target is FileSymbols => Boolean(target))
-    .map((target) =>
-      resolveExportStatic(
-        target,
-        exportedPath,
-        files,
-        crossFileHops - 1,
-        localHops,
-        seen,
+    .map((source) => ({
+      source,
+      target: resolveImportWithKind(file.filename, source, files),
+    }))
+    .filter(
+      (
+        item,
+      ): item is {
+        source: string;
+        target: { file: FileSymbols; kind: EvidenceKind };
+      } => Boolean(item.target),
+    )
+    .map(({ source, target }) =>
+      prependReExportEvidence(
+        resolveExportStatic(
+          target.file,
+          exportedPath,
+          files,
+          crossFileHops - 1,
+          localHops,
+          seen,
+        ),
+        file,
+        source,
+        true,
       ),
     )
-    .filter((value): value is StaticValue => value !== null);
-  return matches.length === 1 || new Set(matches).size === 1
+    .filter((value): value is ResolvedStatic => value !== null);
+  return matches.length === 1 ||
+    new Set(matches.map((item) => item.value)).size === 1
     ? (matches[0] ?? null)
     : null;
 }
@@ -584,6 +739,7 @@ function resolveFactory(
         parameters: raw.parameters,
         arguments: raw.arguments,
         spec,
+        evidence: [{ kind: "factory", file: file.filename, symbol: reference }],
       };
     }
     const nested = resolveFactory(
@@ -595,7 +751,15 @@ function resolveFactory(
       factoryHops - 1,
       nextSeen,
     );
-    return nested ? composeFactory(raw, nested) : null;
+    if (!nested) return null;
+    const composed = composeFactory(raw, nested);
+    return {
+      ...composed,
+      evidence: [
+        { kind: "factory", file: file.filename, symbol: reference },
+        ...composed.evidence,
+      ],
+    };
   }
 
   const alias = file.expressions.get(reference);
@@ -616,7 +780,7 @@ function resolveFactory(
     const target = resolveImport(file.filename, binding.source, files);
     if (!target) continue;
     if (binding.imported === "*" && reference.startsWith(`${binding.local}.`)) {
-      return resolveExportedFactory(
+      const resolved = resolveExportedFactory(
         target,
         reference.slice(binding.local.length + 1),
         files,
@@ -625,9 +789,15 @@ function resolveFactory(
         factoryHops,
         nextSeen,
       );
+      return prependFactoryImportEvidence(
+        resolved,
+        file,
+        binding,
+        resolveImportKind(file.filename, binding.source, files),
+      );
     }
     if (binding.imported !== "*" && reference === binding.local) {
-      return resolveExportedFactory(
+      const resolved = resolveExportedFactory(
         target,
         binding.imported,
         files,
@@ -635,6 +805,12 @@ function resolveFactory(
         crossFileHops - 1,
         factoryHops,
         nextSeen,
+      );
+      return prependFactoryImportEvidence(
+        resolved,
+        file,
+        binding,
+        resolveImportKind(file.filename, binding.source, files),
       );
     }
   }
@@ -664,7 +840,7 @@ function resolveExportedFactory(
   }
   if (binding?.source && binding.imported && crossFileHops > 0) {
     const target = resolveImport(file.filename, binding.source, files);
-    return target
+    const resolved = target
       ? resolveExportedFactory(
           target,
           binding.imported,
@@ -675,20 +851,36 @@ function resolveExportedFactory(
           seen,
         )
       : null;
+    return prependFactoryReExportEvidence(
+      resolved,
+      file,
+      binding.source,
+      false,
+    );
   }
   if (crossFileHops <= 0) return null;
   const matches = file.wildcardExports
-    .map((source) => resolveImport(file.filename, source, files))
-    .filter((target): target is FileSymbols => Boolean(target))
-    .map((target) =>
-      resolveExportedFactory(
-        target,
-        exported,
-        files,
-        constructors,
-        crossFileHops - 1,
-        factoryHops,
-        seen,
+    .map((source) => ({
+      source,
+      target: resolveImport(file.filename, source, files),
+    }))
+    .filter((item): item is { source: string; target: FileSymbols } =>
+      Boolean(item.target),
+    )
+    .map(({ source, target }) =>
+      prependFactoryReExportEvidence(
+        resolveExportedFactory(
+          target,
+          exported,
+          files,
+          constructors,
+          crossFileHops - 1,
+          factoryHops,
+          seen,
+        ),
+        file,
+        source,
+        true,
       ),
     )
     .filter(
@@ -731,18 +923,237 @@ function composeFactory(
   wrapper: RawFactory,
   nested: Omit<TypeScriptFactory, "name">,
 ): Omit<TypeScriptFactory, "name"> {
-  const substitutions = new Map<string, string>();
-  nested.parameters.forEach((parameter, index) => {
-    const argument = wrapper.arguments[index];
-    if (argument !== undefined) substitutions.set(parameter, argument);
-  });
+  const substitutions = factorySubstitutions(
+    nested.parameters,
+    wrapper.arguments,
+  );
   return {
     parameters: wrapper.parameters,
-    arguments: nested.arguments.map(
-      (argument) => substitutions.get(argument.trim()) ?? argument,
+    arguments: nested.arguments.map((argument) =>
+      substituteFactoryArgument(argument, substitutions),
     ),
     spec: nested.spec,
+    evidence: nested.evidence,
   };
+}
+
+function parseFactoryParameter(
+  node: SgNode,
+): TypeScriptFactoryParameter | null {
+  const pattern = node.field("pattern") ?? node;
+  const defaultValue = node.field("value")?.text();
+  if (pattern.kind() === "identifier") {
+    return {
+      kind: "identifier",
+      local: pattern.text(),
+      ...(defaultValue !== undefined ? { defaultValue } : {}),
+    };
+  }
+  if (pattern.kind() !== "object_pattern" || defaultValue !== undefined) {
+    return null;
+  }
+  const properties = destructuredProperties(pattern, true);
+  return properties ? { kind: "object", properties } : null;
+}
+
+function destructuredProperties(
+  pattern: SgNode,
+  allowDefaults = false,
+): TypeScriptFactoryProperty[] | null {
+  const properties: TypeScriptFactoryProperty[] = [];
+  for (const child of pattern.children().filter((item) => item.isNamed())) {
+    if (child.kind() === "shorthand_property_identifier_pattern") {
+      properties.push({ key: child.text(), local: child.text() });
+      continue;
+    }
+    if (child.kind() === "object_assignment_pattern") {
+      if (!allowDefaults) return null;
+      const local = child.field("left")?.text();
+      const defaultValue = child.field("right")?.text();
+      if (!local || defaultValue === undefined) return null;
+      properties.push({ key: local, local, defaultValue });
+      continue;
+    }
+    if (child.kind() !== "pair_pattern") return null;
+    const keyNode = child.field("key");
+    const valueNode = child.field("value");
+    const key = staticPropertyName(keyNode);
+    if (!key || !valueNode) return null;
+    if (valueNode.kind() === "identifier") {
+      properties.push({ key, local: valueNode.text() });
+      continue;
+    }
+    if (valueNode.kind() === "assignment_pattern" && allowDefaults) {
+      const local = valueNode.field("left")?.text();
+      const defaultValue = valueNode.field("right")?.text();
+      if (!local || defaultValue === undefined) return null;
+      properties.push({ key, local, defaultValue });
+      continue;
+    }
+    return null;
+  }
+  return properties.length ? properties : null;
+}
+
+function factorySubstitutions(
+  parameters: TypeScriptFactoryParameter[],
+  arguments_: string[],
+): Map<string, string> {
+  const substitutions = new Map<string, string>();
+  parameters.forEach((parameter, index) => {
+    const argument = arguments_[index];
+    if (parameter.kind === "identifier") {
+      const value = argument ?? parameter.defaultValue;
+      if (parameter.local && value !== undefined) {
+        substitutions.set(parameter.local, value);
+      }
+      return;
+    }
+    const properties = argument
+      ? objectExpressionProperties(argument)
+      : new Map<string, string>();
+    for (const property of parameter.properties ?? []) {
+      const value =
+        properties?.get(property.key) ??
+        (argument && !properties ? `${argument}.${property.key}` : undefined) ??
+        property.defaultValue;
+      if (value !== undefined) substitutions.set(property.local, value);
+    }
+  });
+  return substitutions;
+}
+
+function substituteFactoryArgument(
+  argument: string,
+  substitutions: Map<string, string>,
+): string {
+  const normalized = normalizeExpression(argument);
+  const direct = substitutions.get(normalized);
+  if (direct !== undefined) return direct;
+  const member = normalized.match(/^([$A-Z_a-z][$\w]*)\.([$A-Z_a-z][$\w]*)$/);
+  if (!member?.[1] || !member[2]) return argument;
+  const replacement = substitutions.get(member[1]);
+  if (!replacement) return argument;
+  const properties = objectExpressionProperties(replacement);
+  return properties?.get(member[2]) ?? `${replacement}.${member[2]}`;
+}
+
+function prependImportEvidence(
+  resolved: ResolvedStatic | null,
+  file: FileSymbols,
+  binding: ImportBinding,
+  kind: EvidenceKind,
+): ResolvedStatic | null {
+  return resolved
+    ? {
+        value: resolved.value,
+        evidence: [
+          {
+            kind,
+            file: file.filename,
+            symbol: binding.local,
+            source: binding.source,
+          },
+          ...resolved.evidence,
+        ],
+      }
+    : null;
+}
+
+function prependReExportEvidence(
+  resolved: ResolvedStatic | null,
+  file: FileSymbols,
+  source: string,
+  wildcard: boolean,
+): ResolvedStatic | null {
+  return resolved
+    ? {
+        value: resolved.value,
+        evidence: [
+          {
+            kind: wildcard ? "wildcard-re-export" : "re-export",
+            file: file.filename,
+            source,
+          },
+          ...resolved.evidence,
+        ],
+      }
+    : null;
+}
+
+function prependFactoryImportEvidence(
+  resolved: Omit<TypeScriptFactory, "name"> | null,
+  file: FileSymbols,
+  binding: ImportBinding,
+  kind: EvidenceKind,
+): Omit<TypeScriptFactory, "name"> | null {
+  return resolved
+    ? {
+        ...resolved,
+        evidence: [
+          {
+            kind,
+            file: file.filename,
+            symbol: binding.local,
+            source: binding.source,
+          },
+          ...resolved.evidence,
+        ],
+      }
+    : null;
+}
+
+function prependFactoryReExportEvidence(
+  resolved: Omit<TypeScriptFactory, "name"> | null,
+  file: FileSymbols,
+  source: string,
+  wildcard: boolean,
+): Omit<TypeScriptFactory, "name"> | null {
+  return resolved
+    ? {
+        ...resolved,
+        evidence: [
+          {
+            kind: wildcard ? "wildcard-re-export" : "re-export",
+            file: file.filename,
+            source,
+          },
+          ...resolved.evidence,
+        ],
+      }
+    : null;
+}
+
+export function objectExpressionProperties(
+  expression: string,
+): Map<string, string> | null {
+  const normalized = normalizeExpression(expression);
+  if (!normalized.startsWith("{") || !normalized.endsWith("}")) return null;
+  const tree = parse(Lang.TypeScript, `const __value = ${normalized};`).root();
+  const object = tree.find({ rule: { kind: "object" } });
+  if (!object) return null;
+  const properties = new Map<string, string>();
+  for (const child of object.children().filter((item) => item.isNamed())) {
+    if (child.kind() === "shorthand_property_identifier") {
+      properties.set(child.text(), child.text());
+      continue;
+    }
+    if (child.kind() !== "pair") return null;
+    const key = staticPropertyName(child.field("key"));
+    const value = child.field("value")?.text();
+    if (!key || value === undefined || properties.has(key)) return null;
+    properties.set(key, value);
+  }
+  return properties;
+}
+
+function staticPropertyName(node: SgNode | null | undefined): string | null {
+  if (!node) return null;
+  if (["property_identifier", "identifier"].includes(String(node.kind()))) {
+    return node.text();
+  }
+  const text = node.text();
+  return literalString(text);
 }
 
 function resolveImport(
@@ -750,13 +1161,33 @@ function resolveImport(
   source: string,
   files: Map<string, FileSymbols>,
 ): FileSymbols | undefined {
-  const base = path.resolve(path.dirname(filename), source);
-  const candidates = [
-    base,
-    ...EXTENSIONS.map((extension) => `${base}${extension}`),
-    ...EXTENSIONS.map((extension) => path.join(base, `index${extension}`)),
-  ];
-  return candidates.map((candidate) => files.get(candidate)).find(Boolean);
+  return resolveImportWithKind(filename, source, files)?.file;
+}
+
+function resolveImportKind(
+  filename: string,
+  source: string,
+  files: Map<string, FileSymbols>,
+): EvidenceKind {
+  return (
+    resolveImportWithKind(filename, source, files)?.kind ?? "relative-import"
+  );
+}
+
+function resolveImportWithKind(
+  filename: string,
+  source: string,
+  files: Map<string, FileSymbols>,
+): { file: FileSymbols; kind: EvidenceKind } | undefined {
+  const project = files.get(path.resolve(filename))?.projectResolution ?? null;
+  const resolved = resolveTypeScriptImport(
+    filename,
+    source,
+    new Set(files.keys()),
+    project,
+  );
+  const file = resolved ? files.get(resolved.filename) : undefined;
+  return resolved && file ? { file, kind: resolved.kind } : undefined;
 }
 
 function namedMatches(node: SgNode, name: string): SgNode[] {

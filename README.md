@@ -116,6 +116,7 @@ reply.code(503).send({ errorCode: "UPSTREAM_DOWN", error: "Retry later" });
 ```
 
 Basic lexical flow is recorded as `caught`, `rethrown`, `returned`, or `propagated` for each occurrence.
+JSON scan and catalog occurrences also include a machine-readable `evidence` chain. It records only proof mechanics—such as literal, alias, import, re-export, or factory steps—and never embeds source text or literal error values.
 
 ## Commands
 
@@ -206,6 +207,10 @@ erroratlas runtime-report events.jsonl --format json
   "baseline": ".erroratlas/baseline.json",
   "failOn": "error",
   "fix": { "codePrefix": "API" },
+  "typescript": {
+    "resolveProjectImports": false,
+    "tsconfig": "tsconfig.json"
+  },
   "useDefaultConstructors": true,
   "constructors": {
     "typescript": [
@@ -242,6 +247,8 @@ Set `openapi` to `null` when OpenAPI comparison is not needed. Both OpenAPI/Swag
 
 `baseline` is optional. `fix.codePrefix` must be an uppercase namespace such as `API` or `PAYMENTS`; it affects only new deterministic suggestions.
 
+`typescript.resolveProjectImports` is deliberately `false` by default. When enabled, ErrorAtlas reads the project-relative JSONC `tsconfig`, resolves declared `baseUrl`/`paths`, and maps package names from root `workspaces`. Targets must stay inside the scan root and resolve to scanned source files; undeclared packages remain unresolved.
+
 ## GitHub Actions
 
 After the first generated catalog is committed:
@@ -256,7 +263,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: bvrtu/erroratlas@v0.4.1
+      - uses: bvrtu/erroratlas@v0.5.0
         with:
           path: .
           fail-on: error
@@ -322,7 +329,7 @@ Thin `createExpressErrorMiddleware`, `createFastifyErrorHandler`, and `withError
 
 ## Current scope
 
-Static resolution covers TypeScript/JavaScript immutable aliases, object/enum members, relative named/default/namespace imports, re-exports, and one- or two-hop factory chains. Cross-file proof is capped at two edges and factory composition at two calls. Ambiguous, dynamic, mutated, package-imported, or deeper values remain unstructured. Control-flow labels are lexical; ErrorAtlas does not claim a whole-program CFG. Exact boundaries are in [architecture](docs/architecture.md).
+Static resolution covers TypeScript/JavaScript immutable aliases, immutable destructured object members, object/enum members, named/default/namespace imports, re-exports, and bounded factory chains with object arguments and defaults. Cross-file proof is capped at two edges and factory composition at three wrappers. `tsconfig` paths and declared workspace packages are opt-in. Ambiguous, dynamic, mutated, undeclared package, or deeper values remain unstructured. Control-flow labels are lexical; ErrorAtlas does not claim a whole-program CFG. Exact boundaries are in [architecture](docs/architecture.md).
 
 Runtime monitoring is an embeddable SDK and local/HTTP event format, not a hosted Sentry replacement: ErrorAtlas does not provide a managed dashboard, alert routing, retention, symbolication service, or distributed trace backend. The safe fixer currently adds codes only to explicit TypeScript/JavaScript API response objects; it does not rewrite exception types or imports.
 
@@ -335,6 +342,7 @@ The repository also contains a versioned, privacy-safe [public repository audit 
 - [Greenfield, baseline, OpenAPI, and runtime adoption](docs/adoption.md)
 - [Competitive positioning](docs/positioning.md)
 - [Issue-sized follow-up roadmap](docs/roadmap.md)
+- [0.5.0 release audit and exact limitations](docs/release-audit-0.5.0.md)
 
 ## Contributing
 

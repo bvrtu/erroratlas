@@ -4,6 +4,18 @@ All notable changes to this project will be documented here. The format follows 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-21
+
+### Added
+
+- Opt-in, project-root-confined TypeScript `baseUrl`/`paths` and declared workspace package resolution, shared by full and incremental scans.
+- Immutable object destructuring and factory object/default parameter resolution with an explicit three-wrapper bound.
+- Privacy-safe machine-readable evidence/confidence chains on scanner and catalog occurrences.
+
+### Changed
+
+- Mutable, rest, computed, reassigned, ambiguous, outside-root, and over-bound TypeScript values remain unstructured instead of being inferred.
+
 ## [0.4.1] - 2026-06-20
 
 ### Added

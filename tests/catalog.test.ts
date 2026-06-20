@@ -11,6 +11,10 @@ const baseError: DetectedError = {
   language: "typescript",
   structured: true,
   allowMessageVariants: false,
+  evidence: {
+    confidence: "proven",
+    steps: [{ kind: "syntax", file: "src/users.ts", symbol: "AppError" }],
+  },
   location: {
     file: "src/users.ts",
     line: 4,
@@ -54,6 +58,9 @@ describe("catalog generation", () => {
       resolution: "Verify the user identifier.",
     });
     expect(catalog.errors[0]?.occurrences).toHaveLength(2);
+    expect(catalog.errors[0]?.occurrences[0]?.evidence).toEqual(
+      baseError.evidence,
+    );
     expect(catalog.schemaVersion).toBe(2);
   });
 

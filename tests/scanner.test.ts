@@ -127,6 +127,13 @@ describe("project scanner", () => {
         structured: true,
       }),
     ]);
+    expect(result.errors[0]?.evidence?.steps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "relative-import" }),
+        expect.objectContaining({ kind: "re-export" }),
+        expect.objectContaining({ kind: "factory" }),
+      ]),
+    );
   });
 
   it("does not guess through more than two cross-file hops", async () => {
@@ -156,7 +163,11 @@ describe("project scanner", () => {
     const result = await scanProject(root, await loadConfig(root));
 
     expect(result.errors).toEqual([
-      expect.objectContaining({ code: null, structured: false }),
+      expect.objectContaining({
+        code: null,
+        structured: false,
+        evidence: expect.objectContaining({ confidence: "partial" }),
+      }),
     ]);
     expect(result.diagnostics).toEqual([
       expect.objectContaining({ ruleId: "unstructured-error" }),
@@ -221,6 +232,131 @@ describe("project scanner", () => {
     ]);
     expect(result.diagnostics).toEqual([
       expect.objectContaining({ ruleId: "unstructured-error" }),
+    ]);
+  });
+
+  it("resolves immutable destructured object members", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-"));
+    temporaryDirectories.push(root);
+    await mkdir(path.join(root, "src"));
+    await writeFile(
+      path.join(root, "src", "service.ts"),
+      `
+        const ErrorContract = {
+          NotFound: "DESTRUCTURED_NOT_FOUND",
+          Status: 404,
+        } as const;
+        const { NotFound: CODE, Status } = ErrorContract;
+        throw new AppError(CODE, "Destructured", Status);
+      `,
+    );
+
+    const result = await scanProject(root, await loadConfig(root));
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        code: "DESTRUCTURED_NOT_FOUND",
+        status: 404,
+        structured: true,
+      }),
+    ]);
+  });
+
+  it("rejects mutable, rest, computed, and reassigned destructuring", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-"));
+    temporaryDirectories.push(root);
+    await mkdir(path.join(root, "src"));
+    await writeFile(
+      path.join(root, "src", "service.ts"),
+      `
+        const Mutable = { Code: "MUTABLE_CODE" };
+        const { Code: MUTABLE } = Mutable;
+        const Frozen = { Code: "FROZEN_CODE", Other: "OTHER" } as const;
+        const { Code: REST, ...remaining } = Frozen;
+        const key = "Code";
+        const { [key]: COMPUTED } = Frozen;
+        let { Code: REASSIGNED } = Frozen;
+        REASSIGNED = "CHANGED";
+
+        throw new AppError(MUTABLE, "Mutable", 500);
+        throw new AppError(REST, "Rest", 500);
+        throw new AppError(COMPUTED, "Computed", 500);
+        throw new AppError(REASSIGNED, "Reassigned", 500);
+      `,
+    );
+
+    const result = await scanProject(root, await loadConfig(root));
+    expect(result.errors).toHaveLength(4);
+    expect(result.errors.every((error) => error.code === null)).toBe(true);
+    expect(
+      result.diagnostics.every(
+        (diagnostic) => diagnostic.ruleId === "unstructured-error",
+      ),
+    ).toBe(true);
+  });
+
+  it("resolves object factory arguments, defaults, and three bounded wrappers", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-"));
+    temporaryDirectories.push(root);
+    await mkdir(path.join(root, "src"));
+    await writeFile(
+      path.join(root, "src", "service.ts"),
+      `
+        function makeProblem({ code, detail: message = "Fallback", status = 500 }) {
+          return new AppError(code, message, status);
+        }
+        function withCode(detail, status) {
+          return makeProblem({ code: "DEEP_FACTORY", detail, status });
+        }
+        function notFound(detail = "User missing") {
+          return withCode(detail, 404);
+        }
+        function publicFailure() {
+          return notFound();
+        }
+
+        throw makeProblem({ code: "DEFAULT_FACTORY", detail: "Default status" });
+        throw publicFailure();
+      `,
+    );
+
+    const result = await scanProject(root, await loadConfig(root));
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        code: "DEFAULT_FACTORY",
+        message: "Default status",
+        status: 500,
+      }),
+      expect.objectContaining({
+        code: "DEEP_FACTORY",
+        message: "User missing",
+        status: 404,
+      }),
+    ]);
+    const deep = result.errors.find((error) => error.code === "DEEP_FACTORY");
+    expect(
+      deep?.evidence?.steps.filter((step) => step.kind === "factory"),
+    ).toHaveLength(4);
+  });
+
+  it("does not compose factories beyond three wrappers", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-"));
+    temporaryDirectories.push(root);
+    await mkdir(path.join(root, "src"));
+    await writeFile(
+      path.join(root, "src", "service.ts"),
+      `
+        const base = (code) => new AppError(code, "Too deep", 500);
+        const one = (code) => base(code);
+        const two = (code) => one(code);
+        const three = (code) => two(code);
+        const four = (code) => three(code);
+        throw four("TOO_DEEP");
+      `,
+    );
+
+    const result = await scanProject(root, await loadConfig(root));
+    expect(result.errors).toEqual([
+      expect.objectContaining({ code: null, structured: false }),
     ]);
   });
 

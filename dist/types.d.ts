@@ -2,6 +2,17 @@ export type SupportedLanguage = "typescript" | "python" | "java" | "dart" | "swi
 export type Severity = "error" | "warning" | "note";
 export type ErrorFlow = "propagated" | "caught" | "rethrown" | "returned";
 export type ProblemExtensionValue = string | number | boolean | null;
+export type EvidenceKind = "syntax" | "literal" | "local-alias" | "object-member" | "enum-member" | "destructured-member" | "relative-import" | "path-alias" | "base-url" | "workspace-import" | "re-export" | "wildcard-re-export" | "factory";
+export interface EvidenceStep {
+    kind: EvidenceKind;
+    file: string;
+    symbol?: string;
+    source?: string;
+}
+export interface DetectionEvidence {
+    confidence: "proven" | "partial";
+    steps: EvidenceStep[];
+}
 export interface ProblemDetails {
     type: string | null;
     title: string | null;
@@ -27,6 +38,10 @@ export interface ConstructorSpec {
 export interface FixPolicy {
     codePrefix: string | null;
 }
+export interface TypeScriptPolicy {
+    resolveProjectImports: boolean;
+    tsconfig: string;
+}
 export interface ErrorAtlasConfig {
     include: string[];
     exclude: string[];
@@ -35,6 +50,7 @@ export interface ErrorAtlasConfig {
     openapi: string | null;
     baseline: string | null;
     fix: FixPolicy;
+    typescript: TypeScriptPolicy;
     failOn: Exclude<Severity, "note">;
     constructors: Record<SupportedLanguage, ConstructorSpec[]>;
 }
@@ -48,12 +64,14 @@ export interface DetectedError {
     allowMessageVariants: boolean;
     problem?: ProblemDetails;
     flow?: ErrorFlow;
+    evidence?: DetectionEvidence;
     location: SourceLocation;
 }
 export interface CatalogOccurrence extends SourceLocation {
     language: SupportedLanguage;
     constructor: string;
     flow?: ErrorFlow;
+    evidence?: DetectionEvidence;
 }
 export interface CatalogEntry {
     code: string;
@@ -94,6 +112,7 @@ export interface RawConfig {
     openapi?: string | null;
     baseline?: string | null;
     fix?: Partial<FixPolicy>;
+    typescript?: Partial<TypeScriptPolicy>;
     failOn?: Exclude<Severity, "note">;
     useDefaultConstructors?: boolean;
     constructors?: Partial<Record<SupportedLanguage, ConstructorSpec[]>>;

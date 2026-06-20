@@ -1,6 +1,7 @@
+import path from "node:path";
 import { Lang, parse } from "@ast-grep/napi";
 import { detectedFromArguments, detectedFromArgumentTexts, inferErrorFlow, propertyStaticNumber, propertyStaticString, staticNumber, staticString, toLocation, } from "./shared.js";
-import { collectLocalTypeScriptFactories, collectLocalTypeScriptValues, } from "./typescript-symbols.js";
+import { collectLocalTypeScriptFactories, collectLocalTypeScriptValues, objectExpressionProperties, } from "./typescript-symbols.js";
 export function extractTypeScriptErrors(input) {
     const language = /\.[jt]sx$/.test(input.filename)
         ? Lang.Tsx
@@ -19,15 +20,16 @@ export function extractTypeScriptErrors(input) {
                 .ancestors()
                 .some((ancestor) => ancestor.kind() === "throw_statement"))
                 continue;
-            errors.push(detectedFromArguments({
+            const args = namedMatches(node, "ARGS");
+            errors.push(withEvidence(detectedFromArguments({
                 root: input.root,
                 filename: input.filename,
                 node,
-                args: namedMatches(node, "ARGS"),
+                args,
                 spec,
                 language: "typescript",
                 values,
-            }));
+            }), input, args.map((item) => item.text())));
         }
     }
     const thrown = tree.findAll({
@@ -38,7 +40,7 @@ export function extractTypeScriptErrors(input) {
         if (configured.has(constructor))
             continue;
         const args = namedMatches(node, "ARGS");
-        errors.push({
+        errors.push(withEvidence({
             code: null,
             message: staticString(args[0]?.text() ?? "", values),
             status: null,
@@ -48,7 +50,7 @@ export function extractTypeScriptErrors(input) {
             allowMessageVariants: false,
             flow: inferErrorFlow(node),
             location: toLocation(input.root, input.filename, node),
-        });
+        }, input, args.map((item) => item.text())));
     }
     errors.push(...extractFactoryThrows(input, tree, values), ...extractApiResponses(input, tree, values));
     return errors;
@@ -68,15 +70,8 @@ function extractFactoryThrows(input, tree, values) {
         resolvedNodes.add(node.id());
         const callArguments = namedMatches(node, "ARGS").map((item) => item.text());
         const scopedValues = new Map(values);
-        factory.parameters.forEach((parameter, index) => {
-            const argument = callArguments[index];
-            if (argument === undefined)
-                return;
-            const value = resolveValue(argument, values);
-            if (value !== null)
-                scopedValues.set(parameter, value);
-        });
-        errors.push(detectedFromArgumentTexts({
+        bindFactoryArguments(factory.parameters, callArguments, values, scopedValues);
+        errors.push(withEvidence(detectedFromArgumentTexts({
             root: input.root,
             filename: input.filename,
             node,
@@ -85,7 +80,7 @@ function extractFactoryThrows(input, tree, values) {
             language: "typescript",
             values: scopedValues,
             constructorName: `${factory.name}()`,
-        }));
+        }), input, callArguments, factory.evidence));
     }
     for (const node of tree.findAll({
         rule: { pattern: "throw $FACTORY($$$ARGS)" },
@@ -95,7 +90,7 @@ function extractFactoryThrows(input, tree, values) {
         const name = node.getMatch("FACTORY")?.text();
         if (!name || name === "new")
             continue;
-        errors.push({
+        errors.push(withEvidence({
             code: null,
             message: null,
             status: null,
@@ -105,9 +100,54 @@ function extractFactoryThrows(input, tree, values) {
             allowMessageVariants: false,
             flow: inferErrorFlow(node),
             location: toLocation(input.root, input.filename, node),
-        });
+        }, input, []));
     }
     return errors;
+}
+function bindFactoryArguments(parameters, callArguments, values, scopedValues) {
+    parameters.forEach((parameter, index) => {
+        const argument = callArguments[index];
+        if (parameter.kind === "identifier") {
+            if (!parameter.local)
+                return;
+            const expression = argument ?? parameter.defaultValue;
+            if (expression === undefined)
+                return;
+            const value = resolveValue(expression, values);
+            if (value !== null)
+                scopedValues.set(parameter.local, value);
+            bindObjectAlias(parameter.local, expression, values, scopedValues);
+            return;
+        }
+        const object = argument ? objectExpressionProperties(argument) : null;
+        for (const property of parameter.properties ?? []) {
+            const expression = object?.get(property.key) ??
+                (argument && !object ? `${argument}.${property.key}` : undefined);
+            const value = (expression === undefined ? null : resolveValue(expression, values)) ??
+                (property.defaultValue === undefined
+                    ? null
+                    : resolveValue(property.defaultValue, values));
+            if (value !== null)
+                scopedValues.set(property.local, value);
+        }
+    });
+}
+function bindObjectAlias(local, expression, values, scopedValues) {
+    const object = objectExpressionProperties(expression);
+    if (object) {
+        for (const [key, valueExpression] of object) {
+            const value = resolveValue(valueExpression, values);
+            if (value !== null)
+                scopedValues.set(`${local}.${key}`, value);
+        }
+        return;
+    }
+    const prefix = `${expression.trim()}.`;
+    for (const [name, value] of values) {
+        if (name.startsWith(prefix)) {
+            scopedValues.set(`${local}.${name.slice(prefix.length)}`, value);
+        }
+    }
 }
 function extractApiResponses(input, tree, values) {
     const errors = [];
@@ -200,6 +240,7 @@ function responseDetection(input) {
         ...problemDetails(input.body, input.values),
         flow: "returned",
         location: toLocation(input.root, input.filename, input.node),
+        evidence: basicEvidence(input.root, input.filename, input.constructor, code !== null),
     };
 }
 function problemDetails(body, values) {
@@ -267,5 +308,51 @@ function addUnique(errors, seen, node, detected) {
         return;
     seen.add(key);
     errors.push(detected);
+}
+function withEvidence(error, input, expressions, extra = []) {
+    const steps = [
+        ...basicEvidence(input.root, input.filename, error.constructor, error.structured).steps,
+        ...extra.map((step) => normalizeEvidenceStep(input.root, step)),
+    ];
+    for (const expression of expressions) {
+        for (const step of input.staticEvidence?.get(expression.trim()) ?? []) {
+            steps.push(normalizeEvidenceStep(input.root, step));
+        }
+    }
+    return {
+        ...error,
+        evidence: {
+            confidence: error.structured ? "proven" : "partial",
+            steps: uniqueEvidence(steps),
+        },
+    };
+}
+function basicEvidence(root, filename, symbol, structured) {
+    return {
+        confidence: structured ? "proven" : "partial",
+        steps: [
+            {
+                kind: "syntax",
+                file: path.relative(root, filename).split(path.sep).join("/"),
+                symbol,
+            },
+        ],
+    };
+}
+function normalizeEvidenceStep(root, step) {
+    const file = path.isAbsolute(step.file)
+        ? path.relative(root, step.file).split(path.sep).join("/")
+        : step.file.split(path.sep).join("/");
+    return { ...step, file };
+}
+function uniqueEvidence(steps) {
+    const seen = new Set();
+    return steps.filter((step) => {
+        const key = JSON.stringify(step);
+        if (seen.has(key))
+            return false;
+        seen.add(key);
+        return true;
+    });
 }
 //# sourceMappingURL=typescript.js.map

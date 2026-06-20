@@ -1,8 +1,11 @@
+import path from "node:path";
 import { Lang, parse } from "@ast-grep/napi";
 import type { SgNode } from "@ast-grep/napi";
 import type {
   ConstructorSpec,
+  DetectionEvidence,
   DetectedError,
+  EvidenceStep,
   ProblemDetails,
   ProblemExtensionValue,
 } from "../types.js";
@@ -19,9 +22,12 @@ import {
 import {
   collectLocalTypeScriptFactories,
   collectLocalTypeScriptValues,
+  objectExpressionProperties,
   type StaticValue,
+  type StaticEvidence,
   type StaticValues,
   type TypeScriptFactory,
+  type TypeScriptFactoryParameter,
 } from "./typescript-symbols.js";
 
 export function extractTypeScriptErrors(input: {
@@ -30,6 +36,7 @@ export function extractTypeScriptErrors(input: {
   source: string;
   constructors: ConstructorSpec[];
   staticValues?: StaticValues;
+  staticEvidence?: StaticEvidence;
   factories?: ReadonlyMap<string, TypeScriptFactory>;
 }): DetectedError[] {
   const language = /\.[jt]sx$/.test(input.filename)
@@ -53,16 +60,21 @@ export function extractTypeScriptErrors(input: {
           .some((ancestor) => ancestor.kind() === "throw_statement")
       )
         continue;
+      const args = namedMatches(node, "ARGS");
       errors.push(
-        detectedFromArguments({
-          root: input.root,
-          filename: input.filename,
-          node,
-          args: namedMatches(node, "ARGS"),
-          spec,
-          language: "typescript",
-          values,
-        }),
+        withEvidence(
+          detectedFromArguments({
+            root: input.root,
+            filename: input.filename,
+            node,
+            args,
+            spec,
+            language: "typescript",
+            values,
+          }),
+          input,
+          args.map((item) => item.text()),
+        ),
       );
     }
   }
@@ -74,17 +86,23 @@ export function extractTypeScriptErrors(input: {
     const constructor = node.getMatch("CTOR")?.text() ?? "Error";
     if (configured.has(constructor)) continue;
     const args = namedMatches(node, "ARGS");
-    errors.push({
-      code: null,
-      message: staticString(args[0]?.text() ?? "", values),
-      status: null,
-      constructor,
-      language: "typescript",
-      structured: false,
-      allowMessageVariants: false,
-      flow: inferErrorFlow(node),
-      location: toLocation(input.root, input.filename, node),
-    });
+    errors.push(
+      withEvidence(
+        {
+          code: null,
+          message: staticString(args[0]?.text() ?? "", values),
+          status: null,
+          constructor,
+          language: "typescript",
+          structured: false,
+          allowMessageVariants: false,
+          flow: inferErrorFlow(node),
+          location: toLocation(input.root, input.filename, node),
+        },
+        input,
+        args.map((item) => item.text()),
+      ),
+    );
   }
 
   errors.push(
@@ -101,6 +119,7 @@ function extractFactoryThrows(
     filename: string;
     constructors: ConstructorSpec[];
     factories?: ReadonlyMap<string, TypeScriptFactory>;
+    staticEvidence?: StaticEvidence;
   },
   tree: SgNode,
   values: StaticValues,
@@ -124,23 +143,28 @@ function extractFactoryThrows(
     resolvedNodes.add(node.id());
     const callArguments = namedMatches(node, "ARGS").map((item) => item.text());
     const scopedValues = new Map(values);
-    factory.parameters.forEach((parameter, index) => {
-      const argument = callArguments[index];
-      if (argument === undefined) return;
-      const value = resolveValue(argument, values);
-      if (value !== null) scopedValues.set(parameter, value);
-    });
+    bindFactoryArguments(
+      factory.parameters,
+      callArguments,
+      values,
+      scopedValues,
+    );
     errors.push(
-      detectedFromArgumentTexts({
-        root: input.root,
-        filename: input.filename,
-        node,
-        args: factory.arguments,
-        spec: factory.spec,
-        language: "typescript",
-        values: scopedValues,
-        constructorName: `${factory.name}()`,
-      }),
+      withEvidence(
+        detectedFromArgumentTexts({
+          root: input.root,
+          filename: input.filename,
+          node,
+          args: factory.arguments,
+          spec: factory.spec,
+          language: "typescript",
+          values: scopedValues,
+          constructorName: `${factory.name}()`,
+        }),
+        input,
+        callArguments,
+        factory.evidence,
+      ),
     );
   }
   for (const node of tree.findAll({
@@ -149,23 +173,88 @@ function extractFactoryThrows(
     if (resolvedNodes.has(node.id())) continue;
     const name = node.getMatch("FACTORY")?.text();
     if (!name || name === "new") continue;
-    errors.push({
-      code: null,
-      message: null,
-      status: null,
-      constructor: `${name}()`,
-      language: "typescript",
-      structured: false,
-      allowMessageVariants: false,
-      flow: inferErrorFlow(node),
-      location: toLocation(input.root, input.filename, node),
-    });
+    errors.push(
+      withEvidence(
+        {
+          code: null,
+          message: null,
+          status: null,
+          constructor: `${name}()`,
+          language: "typescript",
+          structured: false,
+          allowMessageVariants: false,
+          flow: inferErrorFlow(node),
+          location: toLocation(input.root, input.filename, node),
+        },
+        input,
+        [],
+      ),
+    );
   }
   return errors;
 }
 
+function bindFactoryArguments(
+  parameters: TypeScriptFactoryParameter[],
+  callArguments: string[],
+  values: StaticValues,
+  scopedValues: Map<string, StaticValue>,
+): void {
+  parameters.forEach((parameter, index) => {
+    const argument = callArguments[index];
+    if (parameter.kind === "identifier") {
+      if (!parameter.local) return;
+      const expression = argument ?? parameter.defaultValue;
+      if (expression === undefined) return;
+      const value = resolveValue(expression, values);
+      if (value !== null) scopedValues.set(parameter.local, value);
+      bindObjectAlias(parameter.local, expression, values, scopedValues);
+      return;
+    }
+
+    const object = argument ? objectExpressionProperties(argument) : null;
+    for (const property of parameter.properties ?? []) {
+      const expression =
+        object?.get(property.key) ??
+        (argument && !object ? `${argument}.${property.key}` : undefined);
+      const value =
+        (expression === undefined ? null : resolveValue(expression, values)) ??
+        (property.defaultValue === undefined
+          ? null
+          : resolveValue(property.defaultValue, values));
+      if (value !== null) scopedValues.set(property.local, value);
+    }
+  });
+}
+
+function bindObjectAlias(
+  local: string,
+  expression: string,
+  values: StaticValues,
+  scopedValues: Map<string, StaticValue>,
+): void {
+  const object = objectExpressionProperties(expression);
+  if (object) {
+    for (const [key, valueExpression] of object) {
+      const value = resolveValue(valueExpression, values);
+      if (value !== null) scopedValues.set(`${local}.${key}`, value);
+    }
+    return;
+  }
+  const prefix = `${expression.trim()}.`;
+  for (const [name, value] of values) {
+    if (name.startsWith(prefix)) {
+      scopedValues.set(`${local}.${name.slice(prefix.length)}`, value);
+    }
+  }
+}
+
 function extractApiResponses(
-  input: { root: string; filename: string },
+  input: {
+    root: string;
+    filename: string;
+    staticEvidence?: StaticEvidence;
+  },
   tree: SgNode,
   values: StaticValues,
 ): DetectedError[] {
@@ -286,6 +375,12 @@ function responseDetection(input: {
     ...problemDetails(input.body, input.values),
     flow: "returned",
     location: toLocation(input.root, input.filename, input.node),
+    evidence: basicEvidence(
+      input.root,
+      input.filename,
+      input.constructor,
+      code !== null,
+    ),
   };
 }
 
@@ -364,4 +459,72 @@ function addUnique(
   if (seen.has(key)) return;
   seen.add(key);
   errors.push(detected);
+}
+
+function withEvidence(
+  error: DetectedError,
+  input: {
+    root: string;
+    filename: string;
+    staticEvidence?: StaticEvidence;
+  },
+  expressions: string[],
+  extra: EvidenceStep[] = [],
+): DetectedError {
+  const steps: EvidenceStep[] = [
+    ...basicEvidence(
+      input.root,
+      input.filename,
+      error.constructor,
+      error.structured,
+    ).steps,
+    ...extra.map((step) => normalizeEvidenceStep(input.root, step)),
+  ];
+  for (const expression of expressions) {
+    for (const step of input.staticEvidence?.get(expression.trim()) ?? []) {
+      steps.push(normalizeEvidenceStep(input.root, step));
+    }
+  }
+  return {
+    ...error,
+    evidence: {
+      confidence: error.structured ? "proven" : "partial",
+      steps: uniqueEvidence(steps),
+    },
+  };
+}
+
+function basicEvidence(
+  root: string,
+  filename: string,
+  symbol: string,
+  structured: boolean,
+): DetectionEvidence {
+  return {
+    confidence: structured ? "proven" : "partial",
+    steps: [
+      {
+        kind: "syntax",
+        file: path.relative(root, filename).split(path.sep).join("/"),
+        symbol,
+      },
+    ],
+  };
+}
+
+function normalizeEvidenceStep(root: string, step: EvidenceStep): EvidenceStep {
+  const file = path.isAbsolute(step.file)
+    ? path.relative(root, step.file).split(path.sep).join("/")
+    : step.file.split(path.sep).join("/");
+  return { ...step, file };
+}
+
+function uniqueEvidence(steps: EvidenceStep[]): EvidenceStep[] {
+  const seen = new Set<string>();
+  return steps.filter((step) => {
+    const key = JSON.stringify(step);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

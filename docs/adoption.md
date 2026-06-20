@@ -12,6 +12,19 @@ npx erroratlas check
 
 Commit `erroratlas.config.json`, `erroratlas.catalog.json`, and generated Markdown. Edit descriptions and resolutions in JSON; regeneration preserves them.
 
+Monorepos can opt into deterministic project imports:
+
+```json
+{
+  "typescript": {
+    "resolveProjectImports": true,
+    "tsconfig": "tsconfig.json"
+  }
+}
+```
+
+Only `baseUrl`/`paths` targets and packages declared by the root workspace are considered. Resolution never searches arbitrary dependencies or leaves the project root.
+
 ## Legacy repository with a baseline
 
 Generate a catalog, review it, then record existing diagnostics:
@@ -45,7 +58,7 @@ For RFC 9457 APIs, describe error responses under `application/problem+json` and
 The composite Action exposes the same contract path relative to its project `path`:
 
 ```yaml
-- uses: bvrtu/erroratlas@v0.4.1
+- uses: bvrtu/erroratlas@v0.5.0
   with:
     path: .
     openapi: openapi.yaml

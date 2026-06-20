@@ -1,19 +1,22 @@
 import path from "node:path";
 import { Lang, parse } from "@ast-grep/napi";
 import { literalNumber, literalString } from "./shared.js";
-const EXTENSIONS = [".ts", ".tsx", ".js", ".jsx"];
+import { resolveTypeScriptImport, } from "./typescript-project.js";
 export const MAX_CROSS_FILE_HOPS = 2;
 const MAX_LOCAL_ALIAS_HOPS = 8;
-const MAX_FACTORY_HOPS = 2;
-export function buildTypeScriptStaticValues(files) {
-    const symbols = collectProjectSymbols(files);
+const MAX_FACTORY_HOPS = 3;
+export function buildTypeScriptStaticValues(files, projectResolution = null) {
+    return new Map([...buildTypeScriptStaticAnalysis(files, projectResolution)].map(([filename, analysis]) => [filename, analysis.values]));
+}
+export function buildTypeScriptStaticAnalysis(files, projectResolution = null) {
+    const symbols = collectProjectSymbols(files, projectResolution);
     return new Map([...symbols].map(([filename, file]) => [
         filename,
-        materializeStaticValues(file, symbols),
+        materializeStaticAnalysis(file, symbols),
     ]));
 }
-export function buildTypeScriptFactories(files, constructors) {
-    const symbols = collectProjectSymbols(files);
+export function buildTypeScriptFactories(files, constructors, projectResolution = null) {
+    const symbols = collectProjectSymbols(files, projectResolution);
     const constructorMap = new Map(constructors.map((constructor) => [constructor.name, constructor]));
     return new Map([...symbols].map(([filename, file]) => {
         const factories = new Map();
@@ -38,13 +41,17 @@ export function evaluateStatic(expression, values) {
         values.get(normalized) ??
         null);
 }
-function collectProjectSymbols(files) {
-    return new Map(files.map((file) => [path.resolve(file.filename), collectSymbols(file)]));
+function collectProjectSymbols(files, projectResolution) {
+    return new Map(files.map((file) => [
+        path.resolve(file.filename),
+        collectSymbols(file, projectResolution),
+    ]));
 }
-function collectSymbols(file) {
+function collectSymbols(file, projectResolution) {
     const language = /\.[jt]sx$/.test(file.filename) ? Lang.Tsx : Lang.TypeScript;
     const tree = parse(language, file.source).root();
     const expressions = new Map();
+    const expressionKinds = new Map();
     const exports = new Map();
     const wildcardExports = [];
     const imports = [];
@@ -52,12 +59,20 @@ function collectSymbols(file) {
     for (const node of tree.findAll({
         rule: { pattern: "const $NAME = $VALUE" },
     })) {
-        const name = node.getMatch("NAME")?.text();
+        const nameNode = node.getMatch("NAME");
         const valueNode = node.getMatch("VALUE");
-        if (!name || !valueNode)
+        if (!nameNode || !valueNode)
+            continue;
+        if (nameNode.kind() === "object_pattern") {
+            collectDestructuredMembers(nameNode, valueNode, expressions, expressionKinds);
+            continue;
+        }
+        const name = nameNode.text();
+        if (!/^[$A-Z_a-z][$\w]*$/.test(name))
             continue;
         expressions.set(name, valueNode.text());
-        collectObjectMembers(name, valueNode, expressions);
+        expressionKinds.set(name, "local-alias");
+        collectObjectMembers(name, valueNode, expressions, expressionKinds);
         if (node.parent()?.kind() === "export_statement") {
             exports.set(name, { local: name });
         }
@@ -73,6 +88,8 @@ function collectSymbols(file) {
             const value = assignment.field("value")?.text();
             if (member && value !== undefined)
                 expressions.set(`${name}.${member}`, value);
+            if (member && value !== undefined)
+                expressionKinds.set(`${name}.${member}`, "enum-member");
         }
         if (node.parent()?.kind() === "export_statement") {
             exports.set(name, { local: name });
@@ -80,7 +97,7 @@ function collectSymbols(file) {
     }
     collectFactories(tree, factories);
     for (const node of tree.findAll({ rule: { kind: "export_statement" } })) {
-        parseExport(node.text(), exports, wildcardExports, expressions);
+        parseExport(node.text(), exports, wildcardExports, expressions, expressionKinds);
     }
     for (const node of tree.findAll({ rule: { kind: "import_statement" } })) {
         imports.push(...parseImports(node.text()));
@@ -88,13 +105,19 @@ function collectSymbols(file) {
     return {
         filename: path.resolve(file.filename),
         expressions,
+        expressionKinds,
         exports,
         wildcardExports,
         imports,
         factories,
+        projectResolution,
     };
 }
-function collectObjectMembers(name, valueNode, expressions) {
+function collectObjectMembers(name, valueNode, expressions, expressionKinds) {
+    const immutable = /\bas\s+const\s*$/.test(valueNode.text().trim());
+    const frozen = /^Object\.freeze\s*\(/.test(valueNode.text().trim());
+    if (!immutable && !frozen)
+        return;
     const object = valueNode.kind() === "object"
         ? valueNode
         : valueNode.find({ rule: { kind: "object" } });
@@ -108,8 +131,27 @@ function collectObjectMembers(name, valueNode, expressions) {
             ?.text()
             .replace(/^["']|["']$/g, "");
         const value = pair.field("value")?.text();
-        if (key && value !== undefined)
+        if (key && value !== undefined) {
             expressions.set(`${name}.${key}`, value);
+            expressionKinds.set(`${name}.${key}`, "object-member");
+        }
+    }
+}
+function collectDestructuredMembers(pattern, valueNode, expressions, expressionKinds) {
+    const source = normalizeExpression(valueNode.text());
+    const inline = objectExpressionProperties(source);
+    if (!inline && !/^[$A-Z_a-z][$\w]*(?:\.[$A-Z_a-z][$\w]*)*$/.test(source)) {
+        return;
+    }
+    const properties = destructuredProperties(pattern);
+    if (!properties)
+        return;
+    for (const property of properties) {
+        const expression = inline?.get(property.key) ?? `${source}.${property.key}`;
+        if (expression !== undefined) {
+            expressions.set(property.local, expression);
+            expressionKinds.set(property.local, "destructured-member");
+        }
     }
 }
 function collectFactories(tree, factories) {
@@ -124,15 +166,18 @@ function collectFactories(tree, factories) {
             const callee = node.getMatch("CALLEE")?.text();
             if (!name || !callee)
                 continue;
+            const parameters = namedMatches(node, "PARAMS").map(parseFactoryParameter);
+            if (parameters.some((parameter) => parameter === null))
+                continue;
             factories.set(name, {
-                parameters: namedMatches(node, "PARAMS").map((item) => item.text()),
+                parameters: parameters.filter((parameter) => parameter !== null),
                 arguments: namedMatches(node, "ARGS").map((item) => item.text()),
                 callee,
             });
         }
     }
 }
-function parseExport(statement, exports, wildcardExports, expressions) {
+function parseExport(statement, exports, wildcardExports, expressions, expressionKinds) {
     const defaultDeclaration = statement.match(/^export\s+default\s+(?:async\s+)?(?:function|class)\s+([\w$]+)/)?.[1];
     if (defaultDeclaration)
         exports.set("default", { local: defaultDeclaration });
@@ -140,7 +185,7 @@ function parseExport(statement, exports, wildcardExports, expressions) {
     if (declaration)
         exports.set(declaration, { local: declaration });
     const source = statement.match(/\bfrom\s+(["'])(.*?)\1/)?.[2];
-    if (source?.startsWith(".") && /^export\s+\*/.test(statement.trim())) {
+    if (source && /^export\s+\*/.test(statement.trim())) {
         wildcardExports.push(source);
         return;
     }
@@ -151,9 +196,7 @@ function parseExport(statement, exports, wildcardExports, expressions) {
             if (!match?.[1])
                 continue;
             const exported = match[2] ?? match[1];
-            exports.set(exported, source?.startsWith(".")
-                ? { imported: match[1], source }
-                : { local: match[1] });
+            exports.set(exported, source ? { imported: match[1], source } : { local: match[1] });
         }
     }
     const defaultExpression = statement
@@ -162,12 +205,13 @@ function parseExport(statement, exports, wildcardExports, expressions) {
     if (defaultExpression && !/^(?:function|class)\b/.test(defaultExpression)) {
         const local = "__erroratlas_default__";
         expressions.set(local, defaultExpression.replace(/;$/, ""));
+        expressionKinds.set(local, "local-alias");
         exports.set("default", { local });
     }
 }
 function parseImports(statement) {
     const source = statement.match(/\bfrom\s+(["'])(.*?)\1/)?.[2];
-    if (!source?.startsWith("."))
+    if (!source)
         return [];
     const bindings = [];
     const named = statement.match(/import\s*{([^}]+)}/s)?.[1];
@@ -192,8 +236,9 @@ function parseImports(statement) {
     }
     return bindings;
 }
-function materializeStaticValues(file, files) {
+function materializeStaticAnalysis(file, files) {
     const values = new Map();
+    const evidence = new Map();
     const candidates = new Set(file.expressions.keys());
     for (const binding of file.imports) {
         const importedFile = resolveImport(file.filename, binding.source, files);
@@ -214,17 +259,23 @@ function materializeStaticValues(file, files) {
         }
     }
     for (const candidate of candidates) {
-        const value = resolveStatic(file, candidate, files, MAX_CROSS_FILE_HOPS, MAX_LOCAL_ALIAS_HOPS, new Set());
-        if (value !== null)
-            values.set(candidate, value);
+        const resolved = resolveStatic(file, candidate, files, MAX_CROSS_FILE_HOPS, MAX_LOCAL_ALIAS_HOPS, new Set());
+        if (resolved !== null) {
+            values.set(candidate, resolved.value);
+            evidence.set(candidate, resolved.evidence);
+        }
     }
-    return values;
+    return { values, evidence };
 }
 function resolveStatic(file, expression, files, crossFileHops, localHops, seen) {
     const normalized = normalizeExpression(expression);
     const literal = literalString(normalized) ?? literalNumberOrNull(normalized);
-    if (literal !== null)
-        return literal;
+    if (literal !== null) {
+        return {
+            value: literal,
+            evidence: [{ kind: "literal", file: file.filename }],
+        };
+    }
     if (localHops < 0)
         return null;
     const key = `${file.filename}:${normalized}:${crossFileHops}`;
@@ -233,22 +284,38 @@ function resolveStatic(file, expression, files, crossFileHops, localHops, seen) 
     const nextSeen = new Set(seen).add(key);
     const localExpression = file.expressions.get(normalized);
     if (localExpression !== undefined) {
-        return resolveStatic(file, localExpression, files, crossFileHops, localHops - 1, nextSeen);
+        const resolved = resolveStatic(file, localExpression, files, crossFileHops, localHops - 1, nextSeen);
+        return resolved
+            ? {
+                value: resolved.value,
+                evidence: [
+                    {
+                        kind: file.expressionKinds.get(normalized) ?? "local-alias",
+                        file: file.filename,
+                        symbol: normalized,
+                    },
+                    ...resolved.evidence,
+                ],
+            }
+            : null;
     }
     for (const binding of file.imports) {
         if (crossFileHops <= 0)
             continue;
-        const importedFile = resolveImport(file.filename, binding.source, files);
-        if (!importedFile)
+        const imported = resolveImportWithKind(file.filename, binding.source, files);
+        if (!imported)
             continue;
+        const importedFile = imported.file;
         if (binding.imported === "*" &&
             normalized.startsWith(`${binding.local}.`)) {
-            return resolveExportStatic(importedFile, normalized.slice(binding.local.length + 1), files, crossFileHops - 1, localHops, nextSeen);
+            const resolved = resolveExportStatic(importedFile, normalized.slice(binding.local.length + 1), files, crossFileHops - 1, localHops, nextSeen);
+            return prependImportEvidence(resolved, file, binding, imported.kind);
         }
         if (binding.imported !== "*" &&
             (normalized === binding.local ||
                 normalized.startsWith(`${binding.local}.`))) {
-            return resolveExportStatic(importedFile, `${binding.imported}${normalized.slice(binding.local.length)}`, files, crossFileHops - 1, localHops, nextSeen);
+            const resolved = resolveExportStatic(importedFile, `${binding.imported}${normalized.slice(binding.local.length)}`, files, crossFileHops - 1, localHops, nextSeen);
+            return prependImportEvidence(resolved, file, binding, imported.kind);
         }
     }
     return null;
@@ -261,19 +328,24 @@ function resolveExportStatic(file, exportedPath, files, crossFileHops, localHops
         return resolveStatic(file, `${binding.local}${suffix}`, files, crossFileHops, localHops, seen);
     }
     if (binding?.source && binding.imported && crossFileHops > 0) {
-        const target = resolveImport(file.filename, binding.source, files);
-        return target
-            ? resolveExportStatic(target, `${binding.imported}${suffix}`, files, crossFileHops - 1, localHops, seen)
+        const target = resolveImportWithKind(file.filename, binding.source, files);
+        const resolved = target
+            ? resolveExportStatic(target.file, `${binding.imported}${suffix}`, files, crossFileHops - 1, localHops, seen)
             : null;
+        return prependReExportEvidence(resolved, file, binding.source, false);
     }
     if (crossFileHops <= 0)
         return null;
     const matches = file.wildcardExports
-        .map((source) => resolveImport(file.filename, source, files))
-        .filter((target) => Boolean(target))
-        .map((target) => resolveExportStatic(target, exportedPath, files, crossFileHops - 1, localHops, seen))
+        .map((source) => ({
+        source,
+        target: resolveImportWithKind(file.filename, source, files),
+    }))
+        .filter((item) => Boolean(item.target))
+        .map(({ source, target }) => prependReExportEvidence(resolveExportStatic(target.file, exportedPath, files, crossFileHops - 1, localHops, seen), file, source, true))
         .filter((value) => value !== null);
-    return matches.length === 1 || new Set(matches).size === 1
+    return matches.length === 1 ||
+        new Set(matches.map((item) => item.value)).size === 1
         ? (matches[0] ?? null)
         : null;
 }
@@ -352,10 +424,20 @@ function resolveFactory(file, reference, files, constructors, crossFileHops, fac
                 parameters: raw.parameters,
                 arguments: raw.arguments,
                 spec,
+                evidence: [{ kind: "factory", file: file.filename, symbol: reference }],
             };
         }
         const nested = resolveFactory(file, raw.callee, files, constructors, crossFileHops, factoryHops - 1, nextSeen);
-        return nested ? composeFactory(raw, nested) : null;
+        if (!nested)
+            return null;
+        const composed = composeFactory(raw, nested);
+        return {
+            ...composed,
+            evidence: [
+                { kind: "factory", file: file.filename, symbol: reference },
+                ...composed.evidence,
+            ],
+        };
     }
     const alias = file.expressions.get(reference);
     if (alias && /^[\w$]+(?:\.[\w$]+)*$/.test(normalizeExpression(alias))) {
@@ -368,10 +450,12 @@ function resolveFactory(file, reference, files, constructors, crossFileHops, fac
         if (!target)
             continue;
         if (binding.imported === "*" && reference.startsWith(`${binding.local}.`)) {
-            return resolveExportedFactory(target, reference.slice(binding.local.length + 1), files, constructors, crossFileHops - 1, factoryHops, nextSeen);
+            const resolved = resolveExportedFactory(target, reference.slice(binding.local.length + 1), files, constructors, crossFileHops - 1, factoryHops, nextSeen);
+            return prependFactoryImportEvidence(resolved, file, binding, resolveImportKind(file.filename, binding.source, files));
         }
         if (binding.imported !== "*" && reference === binding.local) {
-            return resolveExportedFactory(target, binding.imported, files, constructors, crossFileHops - 1, factoryHops, nextSeen);
+            const resolved = resolveExportedFactory(target, binding.imported, files, constructors, crossFileHops - 1, factoryHops, nextSeen);
+            return prependFactoryImportEvidence(resolved, file, binding, resolveImportKind(file.filename, binding.source, files));
         }
     }
     return null;
@@ -383,16 +467,20 @@ function resolveExportedFactory(file, exported, files, constructors, crossFileHo
     }
     if (binding?.source && binding.imported && crossFileHops > 0) {
         const target = resolveImport(file.filename, binding.source, files);
-        return target
+        const resolved = target
             ? resolveExportedFactory(target, binding.imported, files, constructors, crossFileHops - 1, factoryHops, seen)
             : null;
+        return prependFactoryReExportEvidence(resolved, file, binding.source, false);
     }
     if (crossFileHops <= 0)
         return null;
     const matches = file.wildcardExports
-        .map((source) => resolveImport(file.filename, source, files))
-        .filter((target) => Boolean(target))
-        .map((target) => resolveExportedFactory(target, exported, files, constructors, crossFileHops - 1, factoryHops, seen))
+        .map((source) => ({
+        source,
+        target: resolveImport(file.filename, source, files),
+    }))
+        .filter((item) => Boolean(item.target))
+        .map(({ source, target }) => prependFactoryReExportEvidence(resolveExportedFactory(target, exported, files, constructors, crossFileHops - 1, factoryHops, seen), file, source, true))
         .filter((factory) => factory !== null);
     return matches.length === 1 ? (matches[0] ?? null) : null;
 }
@@ -420,26 +508,214 @@ function enumerateExportedFactories(file, files, crossFileHops, seen) {
     return names;
 }
 function composeFactory(wrapper, nested) {
-    const substitutions = new Map();
-    nested.parameters.forEach((parameter, index) => {
-        const argument = wrapper.arguments[index];
-        if (argument !== undefined)
-            substitutions.set(parameter, argument);
-    });
+    const substitutions = factorySubstitutions(nested.parameters, wrapper.arguments);
     return {
         parameters: wrapper.parameters,
-        arguments: nested.arguments.map((argument) => substitutions.get(argument.trim()) ?? argument),
+        arguments: nested.arguments.map((argument) => substituteFactoryArgument(argument, substitutions)),
         spec: nested.spec,
+        evidence: nested.evidence,
     };
 }
+function parseFactoryParameter(node) {
+    const pattern = node.field("pattern") ?? node;
+    const defaultValue = node.field("value")?.text();
+    if (pattern.kind() === "identifier") {
+        return {
+            kind: "identifier",
+            local: pattern.text(),
+            ...(defaultValue !== undefined ? { defaultValue } : {}),
+        };
+    }
+    if (pattern.kind() !== "object_pattern" || defaultValue !== undefined) {
+        return null;
+    }
+    const properties = destructuredProperties(pattern, true);
+    return properties ? { kind: "object", properties } : null;
+}
+function destructuredProperties(pattern, allowDefaults = false) {
+    const properties = [];
+    for (const child of pattern.children().filter((item) => item.isNamed())) {
+        if (child.kind() === "shorthand_property_identifier_pattern") {
+            properties.push({ key: child.text(), local: child.text() });
+            continue;
+        }
+        if (child.kind() === "object_assignment_pattern") {
+            if (!allowDefaults)
+                return null;
+            const local = child.field("left")?.text();
+            const defaultValue = child.field("right")?.text();
+            if (!local || defaultValue === undefined)
+                return null;
+            properties.push({ key: local, local, defaultValue });
+            continue;
+        }
+        if (child.kind() !== "pair_pattern")
+            return null;
+        const keyNode = child.field("key");
+        const valueNode = child.field("value");
+        const key = staticPropertyName(keyNode);
+        if (!key || !valueNode)
+            return null;
+        if (valueNode.kind() === "identifier") {
+            properties.push({ key, local: valueNode.text() });
+            continue;
+        }
+        if (valueNode.kind() === "assignment_pattern" && allowDefaults) {
+            const local = valueNode.field("left")?.text();
+            const defaultValue = valueNode.field("right")?.text();
+            if (!local || defaultValue === undefined)
+                return null;
+            properties.push({ key, local, defaultValue });
+            continue;
+        }
+        return null;
+    }
+    return properties.length ? properties : null;
+}
+function factorySubstitutions(parameters, arguments_) {
+    const substitutions = new Map();
+    parameters.forEach((parameter, index) => {
+        const argument = arguments_[index];
+        if (parameter.kind === "identifier") {
+            const value = argument ?? parameter.defaultValue;
+            if (parameter.local && value !== undefined) {
+                substitutions.set(parameter.local, value);
+            }
+            return;
+        }
+        const properties = argument
+            ? objectExpressionProperties(argument)
+            : new Map();
+        for (const property of parameter.properties ?? []) {
+            const value = properties?.get(property.key) ??
+                (argument && !properties ? `${argument}.${property.key}` : undefined) ??
+                property.defaultValue;
+            if (value !== undefined)
+                substitutions.set(property.local, value);
+        }
+    });
+    return substitutions;
+}
+function substituteFactoryArgument(argument, substitutions) {
+    const normalized = normalizeExpression(argument);
+    const direct = substitutions.get(normalized);
+    if (direct !== undefined)
+        return direct;
+    const member = normalized.match(/^([$A-Z_a-z][$\w]*)\.([$A-Z_a-z][$\w]*)$/);
+    if (!member?.[1] || !member[2])
+        return argument;
+    const replacement = substitutions.get(member[1]);
+    if (!replacement)
+        return argument;
+    const properties = objectExpressionProperties(replacement);
+    return properties?.get(member[2]) ?? `${replacement}.${member[2]}`;
+}
+function prependImportEvidence(resolved, file, binding, kind) {
+    return resolved
+        ? {
+            value: resolved.value,
+            evidence: [
+                {
+                    kind,
+                    file: file.filename,
+                    symbol: binding.local,
+                    source: binding.source,
+                },
+                ...resolved.evidence,
+            ],
+        }
+        : null;
+}
+function prependReExportEvidence(resolved, file, source, wildcard) {
+    return resolved
+        ? {
+            value: resolved.value,
+            evidence: [
+                {
+                    kind: wildcard ? "wildcard-re-export" : "re-export",
+                    file: file.filename,
+                    source,
+                },
+                ...resolved.evidence,
+            ],
+        }
+        : null;
+}
+function prependFactoryImportEvidence(resolved, file, binding, kind) {
+    return resolved
+        ? {
+            ...resolved,
+            evidence: [
+                {
+                    kind,
+                    file: file.filename,
+                    symbol: binding.local,
+                    source: binding.source,
+                },
+                ...resolved.evidence,
+            ],
+        }
+        : null;
+}
+function prependFactoryReExportEvidence(resolved, file, source, wildcard) {
+    return resolved
+        ? {
+            ...resolved,
+            evidence: [
+                {
+                    kind: wildcard ? "wildcard-re-export" : "re-export",
+                    file: file.filename,
+                    source,
+                },
+                ...resolved.evidence,
+            ],
+        }
+        : null;
+}
+export function objectExpressionProperties(expression) {
+    const normalized = normalizeExpression(expression);
+    if (!normalized.startsWith("{") || !normalized.endsWith("}"))
+        return null;
+    const tree = parse(Lang.TypeScript, `const __value = ${normalized};`).root();
+    const object = tree.find({ rule: { kind: "object" } });
+    if (!object)
+        return null;
+    const properties = new Map();
+    for (const child of object.children().filter((item) => item.isNamed())) {
+        if (child.kind() === "shorthand_property_identifier") {
+            properties.set(child.text(), child.text());
+            continue;
+        }
+        if (child.kind() !== "pair")
+            return null;
+        const key = staticPropertyName(child.field("key"));
+        const value = child.field("value")?.text();
+        if (!key || value === undefined || properties.has(key))
+            return null;
+        properties.set(key, value);
+    }
+    return properties;
+}
+function staticPropertyName(node) {
+    if (!node)
+        return null;
+    if (["property_identifier", "identifier"].includes(String(node.kind()))) {
+        return node.text();
+    }
+    const text = node.text();
+    return literalString(text);
+}
 function resolveImport(filename, source, files) {
-    const base = path.resolve(path.dirname(filename), source);
-    const candidates = [
-        base,
-        ...EXTENSIONS.map((extension) => `${base}${extension}`),
-        ...EXTENSIONS.map((extension) => path.join(base, `index${extension}`)),
-    ];
-    return candidates.map((candidate) => files.get(candidate)).find(Boolean);
+    return resolveImportWithKind(filename, source, files)?.file;
+}
+function resolveImportKind(filename, source, files) {
+    return (resolveImportWithKind(filename, source, files)?.kind ?? "relative-import");
+}
+function resolveImportWithKind(filename, source, files) {
+    const project = files.get(path.resolve(filename))?.projectResolution ?? null;
+    const resolved = resolveTypeScriptImport(filename, source, new Set(files.keys()), project);
+    const file = resolved ? files.get(resolved.filename) : undefined;
+    return resolved && file ? { file, kind: resolved.kind } : undefined;
 }
 function namedMatches(node, name) {
     return node.getMultipleMatches(name).filter((item) => item.isNamed());
