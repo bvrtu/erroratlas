@@ -6,7 +6,7 @@
 
 **Keep the errors your application throws and the errors your documentation promises in sync.**
 
-ErrorAtlas is an AST-powered CLI and GitHub Action that discovers application errors in TypeScript, JavaScript, Python, Java, Dart, and Swift; generates a human-editable error catalog; and fails CI when code and documentation drift apart.
+ErrorAtlas is an AST-powered CLI, runtime SDK, and GitHub Action that discovers application errors and API error responses in TypeScript, JavaScript, Python, Java, Dart, Swift, Go, C#, and Kotlin; generates a human-editable error catalog; compares it with OpenAPI; and fails CI when contracts drift apart.
 
 ```text
 ✖ src/users.ts:42:11 [undocumented-error] USER_SUSPENDED exists in source but is missing from the catalog.
@@ -21,9 +21,10 @@ API references usually document success paths well. Application-specific errors 
 
 ErrorAtlas makes the error contract executable:
 
-- **Discover:** find structured and unstructured errors with syntax trees, not repository-wide regular expressions.
-- **Document:** generate JSON as the source of truth and Markdown for people.
-- **Protect:** detect undocumented, stale, conflicting, or changed errors in pull requests.
+- **Discover:** find thrown errors, direct factories, static constants, and API error responses with syntax trees.
+- **Document:** generate JSON and Markdown, with deterministic description and resolution suggestions.
+- **Protect:** detect source/catalog/OpenAPI drift in pull requests.
+- **Observe:** optionally collect runtime exceptions, stack traces, handled state, and user-delivery correlation.
 - **Integrate:** emit console, JSON, Markdown, and SARIF output.
 - **Stay private:** scan locally without uploading source code or error messages.
 
@@ -35,6 +36,7 @@ ErrorAtlas requires Node.js 20 or newer.
 npm install --save-dev erroratlas
 npx erroratlas init
 npx erroratlas generate
+npx erroratlas enrich
 ```
 
 Add descriptions and resolutions to `erroratlas.catalog.json`, then regenerate the Markdown reference:
@@ -90,6 +92,20 @@ throw new Error("Database unavailable");
 
 Dynamic codes or messages are intentionally reported as unstructured. ErrorAtlas only records values it can prove from source.
 
+TypeScript and JavaScript scans also recognize relative imported literal constants, direct local factory wrappers, and common API response styles:
+
+```ts
+return NextResponse.json(
+  { code: "USER_NOT_FOUND", message: "User was not found" },
+  { status: 404 },
+);
+
+res.status(401).json({ code: "AUTH_REQUIRED", message: "Sign in" });
+reply.code(503).send({ errorCode: "UPSTREAM_DOWN", error: "Retry later" });
+```
+
+Basic lexical flow is recorded as `caught`, `rethrown`, `returned`, or `propagated` for each occurrence.
+
 ## Commands
 
 ### `erroratlas init [path]`
@@ -124,6 +140,34 @@ Compare the current source with the committed catalog. The command exits with `1
 erroratlas check
 erroratlas check --fail-on warning
 erroratlas check --format sarif --output erroratlas.sarif
+erroratlas check --openapi openapi.yaml
+```
+
+### `erroratlas enrich [path]`
+
+Preview deterministic descriptions and status-aware resolution guidance for empty catalog fields. Human-authored content is never replaced.
+
+```bash
+erroratlas enrich
+erroratlas enrich --write
+```
+
+### `erroratlas fix [path]`
+
+Preview safe source edits that add generated machine codes to explicit TypeScript/JavaScript API error response objects. Source files change only with `--write`.
+
+```bash
+erroratlas fix
+erroratlas fix --write
+```
+
+### `erroratlas runtime-report [file]`
+
+Summarize collected JSONL runtime events, including handled/unhandled counts and whether an exception trace was correlated with a user-facing delivery event.
+
+```bash
+erroratlas runtime-report .erroratlas/runtime.jsonl
+erroratlas runtime-report events.jsonl --format json
 ```
 
 ## Configuration
@@ -132,10 +176,11 @@ erroratlas check --format sarif --output erroratlas.sarif
 
 ```json
 {
-  "include": ["src/**/*.{ts,tsx,js,jsx,py,java,dart,swift}"],
+  "include": ["src/**/*.{ts,tsx,js,jsx,py,java,dart,swift,go,cs,kt,kts}"],
   "exclude": ["**/*.test.ts", "**/test_*.py"],
   "catalog": "erroratlas.catalog.json",
   "docs": "docs/errors.md",
+  "openapi": "openapi.yaml",
   "failOn": "error",
   "useDefaultConstructors": true,
   "constructors": {
@@ -157,14 +202,19 @@ erroratlas check --format sarif --output erroratlas.sarif
     ],
     "java": [],
     "dart": [],
-    "swift": []
+    "swift": [],
+    "go": [],
+    "csharp": [],
+    "kotlin": []
   }
 }
 ```
 
 Custom constructors override a default constructor with the same name. Dotted names such as `errors.ServiceError` are supported.
 
-Built-in profiles cover common application errors, NestJS HTTP exceptions, Firebase `HttpsError`, FastAPI/Starlette `HTTPException`, Spring `ResponseStatusException`, and Dart `FirebaseFunctionsException`. Unknown exception constructors are still reported as unstructured errors.
+Built-in profiles cover common application errors, NestJS HTTP exceptions, Firebase `HttpsError`, FastAPI/Starlette `HTTPException`, Spring `ResponseStatusException`, Dart `FirebaseFunctionsException`, and conventional Go/C#/Kotlin application exceptions. Unknown exception constructors are still reported as unstructured errors.
+
+Set `openapi` to `null` when OpenAPI comparison is not needed. Both OpenAPI/Swagger JSON and YAML are supported.
 
 ## GitHub Actions
 
@@ -180,7 +230,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: bvrtu/erroratlas@v0.2.0
+      - uses: bvrtu/erroratlas@v0.3.0
         with:
           path: .
           fail-on: error
@@ -190,27 +240,67 @@ SARIF output can be uploaded to GitHub code scanning so findings appear inline o
 
 ## Rules
 
-| Rule                   | Default severity | Meaning                                      |
-| ---------------------- | ---------------- | -------------------------------------------- |
-| `undocumented-error`   | error            | A source error is missing from the catalog.  |
-| `message-drift`        | error            | The static message differs from the catalog. |
-| `status-drift`         | error            | The HTTP status differs from the catalog.    |
-| `duplicate-definition` | error            | One code has conflicting source definitions. |
-| `stale-error`          | warning          | A catalog entry no longer exists in source.  |
-| `unstructured-error`   | warning          | A thrown error has no static code.           |
-| `missing-resolution`   | note             | An error has no human-authored resolution.   |
+| Rule                         | Default severity | Meaning                                           |
+| ---------------------------- | ---------------- | ------------------------------------------------- |
+| `undocumented-error`         | error            | A source error is missing from the catalog.       |
+| `message-drift`              | error            | The static message differs from the catalog.      |
+| `status-drift`               | error            | The HTTP status differs from the catalog.         |
+| `duplicate-definition`       | error            | One code has conflicting source definitions.      |
+| `stale-error`                | warning          | A catalog entry no longer exists in source.       |
+| `unstructured-error`         | warning          | A thrown error has no static code.                |
+| `missing-resolution`         | note             | An error has no human-authored resolution.        |
+| `openapi-undocumented-error` | error            | A source code is missing from OpenAPI responses.  |
+| `openapi-status-drift`       | error            | Source and OpenAPI HTTP statuses differ.          |
+| `openapi-stale-error`        | warning          | OpenAPI documents a code not found in source.     |
+| `openapi-no-error-codes`     | note             | OpenAPI exposes no static error codes to compare. |
+
+## Runtime monitoring
+
+Runtime collection is optional and explicit. The default JSONL transport stays local; the HTTP transport sends events only to the endpoint you configure.
+
+```ts
+import { createRuntimeMonitor, JsonlRuntimeTransport } from "erroratlas";
+
+const monitor = createRuntimeMonitor({
+  service: "payments-api",
+  environment: process.env.NODE_ENV ?? "development",
+  transport: new JsonlRuntimeTransport(".erroratlas/runtime.jsonl"),
+});
+
+const removeGlobalHandlers = monitor.installNodeHandlers();
+
+try {
+  await chargeCard();
+} catch (error) {
+  await monitor.captureException(error, {
+    traceId: requestId,
+    handled: true,
+    mechanism: "http-handler",
+  });
+  await monitor.markDelivered({
+    traceId: requestId,
+    channel: "http",
+    code: "PAYMENT_DECLINED",
+    status: 402,
+  });
+}
+```
+
+The runtime SDK records exception name/message/stack, machine code/status when available, handled state, mechanism, environment, service, tags, and trace correlation. Transport failures are isolated from application behavior.
 
 ## Current scope
 
-The current release focuses on errors constructed directly inside `throw` and `raise` statements. It does not yet perform data-flow analysis, resolve imported constants, or inspect errors created through arbitrary factory functions. Those boundaries keep findings deterministic and false positives low.
+Static constant resolution currently covers TypeScript/JavaScript immutable literals in the same file and relative named/namespace imports. Factory resolution covers direct local function/arrow wrappers that return configured constructors. Control-flow labels are lexical; ErrorAtlas does not yet build a whole-program or interprocedural control-flow graph.
+
+Runtime monitoring is an embeddable SDK and local/HTTP event format, not a hosted Sentry replacement: ErrorAtlas does not provide a managed dashboard, alert routing, retention, symbolication service, or distributed trace backend. The safe fixer currently adds codes only to explicit TypeScript/JavaScript API response objects; it does not rewrite exception types or imports.
 
 The repository also contains a privacy-safe [public repository audit dataset](data/README.md) generated from real projects. Raw messages, codes, file paths, and private repository metadata are excluded.
 
 ## Roadmap
 
-- Error factory-function profiles and constant resolution
-- Go, C#, and Kotlin language packs
-- OpenAPI error-response comparison
+- Deeper interprocedural factory, constant, and control-flow analysis
+- Express/Fastify/Next.js runtime middleware adapters
+- OpenTelemetry bridge and hosted/self-hosted event collector
 - Pull-request annotations without separate SARIF setup
 - A read-only API for the Error Contract Benchmark dataset
 

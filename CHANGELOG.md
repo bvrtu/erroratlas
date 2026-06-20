@@ -4,6 +4,23 @@ All notable changes to this project will be documented here. The format follows 
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-20
+
+### Added
+
+- TypeScript/JavaScript API response extraction for Next.js, Express, and Fastify styles.
+- Static literal resolution across local constants and relative named/namespace imports.
+- Direct local factory-function resolution and lexical control-flow labels.
+- OpenAPI/Swagger JSON and YAML comparison with missing, stale, and status-drift rules.
+- Go, C#, and Kotlin language extractors.
+- Optional runtime SDK with JSONL/HTTP transports, stack traces, handled state, and delivery correlation.
+- `runtime-report`, `enrich`, and dry-run-first `fix` commands.
+
+### Changed
+
+- Error catalog occurrences now record `caught`, `rethrown`, `returned`, or `propagated` flow when known.
+- Package verification covers the expanded CLI and clean consumer installation.
+
 ## [0.2.0] - 2026-06-20
 
 ### Added

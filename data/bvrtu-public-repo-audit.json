@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-06-20T12:28:15.144Z",
+  "generatedAt": "2026-06-20T13:23:27.247Z",
   "owner": "bvrtu",
   "tool": {
     "name": "erroratlas",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "summary": {
     "repositories": 10,
     "scannedRepositories": 10,
     "failedRepositories": 0,
-    "filesScanned": 187,
+    "filesScanned": 196,
     "structuredErrors": 8,
     "unstructuredErrors": 46
   },
@@ -21,13 +21,13 @@
       "visibility": "PUBLIC",
       "primaryLanguage": "TypeScript",
       "defaultBranch": "main",
-      "commit": "710b15b7f9fc99905680f008c96cbda776d7be37",
-      "updatedAt": "2026-06-20T12:10:36Z",
-      "diskUsageKb": 0,
+      "commit": "9513298bec3ac86bde3b97787fb7f92bc75ee5d8",
+      "updatedAt": "2026-06-20T12:45:16Z",
+      "diskUsageKb": 104,
       "isFork": false,
       "isArchived": false,
       "status": "scanned",
-      "filesScanned": 13,
+      "filesScanned": 17,
       "structuredErrors": 4,
       "unstructuredErrors": 8,
       "structuredRate": 0.3333,
@@ -118,7 +118,7 @@
       "isFork": false,
       "isArchived": false,
       "status": "scanned",
-      "filesScanned": 49,
+      "filesScanned": 54,
       "structuredErrors": 4,
       "unstructuredErrors": 21,
       "structuredRate": 0.16,

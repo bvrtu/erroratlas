@@ -74,6 +74,50 @@ const DEFAULT_CONSTRUCTORS: Record<SupportedLanguage, ConstructorSpec[]> = {
     { name: "DomainException", codeArgument: 0, messageArgument: 1 },
     { name: "ResponseStatusException", messageArgument: 1 },
   ],
+  csharp: [
+    {
+      name: "AppException",
+      codeArgument: 0,
+      messageArgument: 1,
+      statusArgument: 2,
+    },
+    {
+      name: "ApiException",
+      codeArgument: 0,
+      messageArgument: 1,
+      statusArgument: 2,
+    },
+    { name: "DomainException", codeArgument: 0, messageArgument: 1 },
+  ],
+  go: [
+    {
+      name: "NewAppError",
+      codeArgument: 0,
+      messageArgument: 1,
+      statusArgument: 2,
+    },
+    {
+      name: "NewAPIError",
+      codeArgument: 0,
+      messageArgument: 1,
+      statusArgument: 2,
+    },
+  ],
+  kotlin: [
+    {
+      name: "AppException",
+      codeArgument: 0,
+      messageArgument: 1,
+      statusArgument: 2,
+    },
+    {
+      name: "ApiException",
+      codeArgument: 0,
+      messageArgument: 1,
+      statusArgument: 2,
+    },
+    { name: "DomainException", codeArgument: 0, messageArgument: 1 },
+  ],
   dart: [
     { name: "AppException", codeArgument: 0, messageArgument: 1 },
     { name: "ApiException", codeArgument: 0, messageArgument: 1 },
@@ -83,7 +127,7 @@ const DEFAULT_CONSTRUCTORS: Record<SupportedLanguage, ConstructorSpec[]> = {
 };
 
 const DEFAULTS: Omit<ErrorAtlasConfig, "constructors"> = {
-  include: ["**/*.{ts,tsx,js,jsx,py,java,dart,swift}"],
+  include: ["**/*.{ts,tsx,js,jsx,py,java,dart,swift,go,cs,kt,kts}"],
   exclude: [
     "**/node_modules/**",
     "**/dist/**",
@@ -98,9 +142,14 @@ const DEFAULTS: Omit<ErrorAtlasConfig, "constructors"> = {
     "**/*_test.py",
     "**/*Test.java",
     "**/*Tests.swift",
+    "**/*_test.go",
+    "**/*Test.cs",
+    "**/*Tests.cs",
+    "**/*Test.kt",
   ],
   catalog: "erroratlas.catalog.json",
   docs: "docs/errors.md",
+  openapi: null,
   failOn: "error",
 };
 
@@ -110,6 +159,7 @@ export function defaultRawConfig(): RawConfig {
     exclude: DEFAULTS.exclude,
     catalog: DEFAULTS.catalog,
     docs: DEFAULTS.docs,
+    openapi: DEFAULTS.openapi,
     failOn: DEFAULTS.failOn,
     useDefaultConstructors: true,
     constructors: {
@@ -118,6 +168,9 @@ export function defaultRawConfig(): RawConfig {
       java: [],
       dart: [],
       swift: [],
+      go: [],
+      csharp: [],
+      kotlin: [],
     },
   };
 }
@@ -145,6 +198,9 @@ export async function loadConfig(root: string): Promise<ErrorAtlasConfig> {
     "java",
     "dart",
     "swift",
+    "go",
+    "csharp",
+    "kotlin",
   ];
   const constructors = Object.fromEntries(
     languages.map((language) => [
@@ -161,6 +217,7 @@ export async function loadConfig(root: string): Promise<ErrorAtlasConfig> {
     exclude: raw.exclude ?? DEFAULTS.exclude,
     catalog: raw.catalog ?? DEFAULTS.catalog,
     docs: raw.docs ?? DEFAULTS.docs,
+    openapi: raw.openapi ?? DEFAULTS.openapi,
     failOn: raw.failOn ?? DEFAULTS.failOn,
     constructors,
   };
@@ -186,6 +243,9 @@ function validateRawConfig(config: RawConfig): void {
     "java",
     "dart",
     "swift",
+    "go",
+    "csharp",
+    "kotlin",
   ] as const) {
     for (const constructor of config.constructors?.[language] ?? []) {
       if (!/^[$A-Z_a-z][$\w]*(?:\.[$A-Z_a-z][$\w]*)*$/.test(constructor.name)) {

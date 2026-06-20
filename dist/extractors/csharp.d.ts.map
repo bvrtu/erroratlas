@@ -1,0 +1,1 @@
+{"version":3,"file":"csharp.d.ts","sourceRoot":"","sources":["../../src/extractors/csharp.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAE,eAAe,EAAE,aAAa,EAAE,MAAM,aAAa,CAAC;AASlE,wBAAgB,mBAAmB,CAAC,KAAK,EAAE;IACzC,IAAI,EAAE,MAAM,CAAC;IACb,QAAQ,EAAE,MAAM,CAAC;IACjB,MAAM,EAAE,MAAM,CAAC;IACf,YAAY,EAAE,eAAe,EAAE,CAAC;CACjC,GAAG,aAAa,EAAE,CAqDlB"}

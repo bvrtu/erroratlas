@@ -65,7 +65,7 @@ export function renderMarkdown(catalog: ErrorCatalog): string {
       lines.push("**Defined at**", "");
       for (const occurrence of error.occurrences) {
         lines.push(
-          `- \`${occurrence.file}:${occurrence.line}\` (${occurrence.language}, ${occurrence.constructor})`,
+          `- \`${occurrence.file}:${occurrence.line}\` (${occurrence.language}, ${occurrence.constructor}${occurrence.flow ? `, ${occurrence.flow}` : ""})`,
         );
       }
       lines.push("");

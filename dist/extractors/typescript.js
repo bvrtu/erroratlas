@@ -1,5 +1,6 @@
 import { Lang, parse } from "@ast-grep/napi";
-import { detectedFromArguments, literalString, toLocation } from "./shared.js";
+import { detectedFromArguments, detectedFromArgumentTexts, inferErrorFlow, propertyStaticNumber, propertyStaticString, staticNumber, staticString, toLocation, } from "./shared.js";
+import { collectLocalTypeScriptValues, } from "./typescript-symbols.js";
 export function extractTypeScriptErrors(input) {
     const language = /\.[jt]sx$/.test(input.filename)
         ? Lang.Tsx
@@ -7,6 +8,8 @@ export function extractTypeScriptErrors(input) {
     const tree = parse(language, input.source).root();
     const errors = [];
     const configured = new Set(input.constructors.map((item) => item.name));
+    const values = input.staticValues ??
+        collectLocalTypeScriptValues(input.filename, input.source);
     for (const spec of input.constructors) {
         const matches = tree.findAll({
             rule: { pattern: `new ${spec.name}($$$ARGS)` },
@@ -20,11 +23,10 @@ export function extractTypeScriptErrors(input) {
                 root: input.root,
                 filename: input.filename,
                 node,
-                args: node
-                    .getMultipleMatches("ARGS")
-                    .filter((item) => item.isNamed()),
+                args: namedMatches(node, "ARGS"),
                 spec,
                 language: "typescript",
+                values,
             }));
         }
     }
@@ -35,21 +37,178 @@ export function extractTypeScriptErrors(input) {
         const constructor = node.getMatch("CTOR")?.text() ?? "Error";
         if (configured.has(constructor))
             continue;
-        const args = node
-            .getMultipleMatches("ARGS")
-            .filter((item) => item.isNamed());
-        const message = literalString(args[0]?.text() ?? "");
+        const args = namedMatches(node, "ARGS");
         errors.push({
             code: null,
-            message,
+            message: staticString(args[0]?.text() ?? "", values),
             status: null,
             constructor,
             language: "typescript",
             structured: false,
             allowMessageVariants: false,
+            flow: inferErrorFlow(node),
             location: toLocation(input.root, input.filename, node),
         });
     }
+    errors.push(...extractFactoryThrows(input, tree, values), ...extractApiResponses(input, tree, values));
     return errors;
+}
+function extractFactoryThrows(input, tree, values) {
+    const constructors = new Map(input.constructors.map((spec) => [spec.name, spec]));
+    const factories = new Map();
+    for (const pattern of [
+        "function $FACTORY($$$PARAMS) { return new $CTOR($$$ARGS); }",
+        "const $FACTORY = ($$$PARAMS) => new $CTOR($$$ARGS)",
+    ]) {
+        for (const node of tree.findAll({ rule: { pattern } })) {
+            const name = node.getMatch("FACTORY")?.text();
+            const constructor = node.getMatch("CTOR")?.text();
+            const spec = constructor ? constructors.get(constructor) : undefined;
+            if (!name || !spec)
+                continue;
+            factories.set(name, {
+                name,
+                parameters: namedMatches(node, "PARAMS").map((item) => item.text()),
+                arguments: namedMatches(node, "ARGS").map((item) => item.text()),
+                spec,
+            });
+        }
+    }
+    const errors = [];
+    for (const node of tree.findAll({
+        rule: { pattern: "throw $FACTORY($$$ARGS)" },
+    })) {
+        const name = node.getMatch("FACTORY")?.text();
+        const factory = name ? factories.get(name) : undefined;
+        if (!factory)
+            continue;
+        const callArguments = namedMatches(node, "ARGS").map((item) => item.text());
+        const scopedValues = new Map(values);
+        factory.parameters.forEach((parameter, index) => {
+            const argument = callArguments[index];
+            if (argument === undefined)
+                return;
+            const value = resolveValue(argument, values);
+            if (value !== null)
+                scopedValues.set(parameter, value);
+        });
+        errors.push(detectedFromArgumentTexts({
+            root: input.root,
+            filename: input.filename,
+            node,
+            args: factory.arguments,
+            spec: factory.spec,
+            language: "typescript",
+            values: scopedValues,
+            constructorName: `${factory.name}()`,
+        }));
+    }
+    return errors;
+}
+function extractApiResponses(input, tree, values) {
+    const errors = [];
+    const seen = new Set();
+    for (const callee of ["NextResponse.json", "Response.json"]) {
+        for (const node of tree.findAll({
+            rule: { pattern: `${callee}($$$ARGS)` },
+        })) {
+            const args = namedMatches(node, "ARGS").map((item) => item.text());
+            const body = args[0] ?? "";
+            const options = args[1] ?? "";
+            const detected = responseDetection({
+                ...input,
+                node,
+                body,
+                statusText: options,
+                constructor: callee,
+                values,
+            });
+            if (detected)
+                addUnique(errors, seen, node, detected);
+        }
+    }
+    const chains = [
+        {
+            pattern: "$RESPONSE.status($STATUS).json($BODY)",
+            label: "response.status().json()",
+        },
+        {
+            pattern: "$RESPONSE.status($STATUS).send($BODY)",
+            label: "response.status().send()",
+        },
+        {
+            pattern: "$RESPONSE.code($STATUS).send($BODY)",
+            label: "reply.code().send()",
+        },
+    ];
+    for (const chain of chains) {
+        for (const node of tree.findAll({ rule: { pattern: chain.pattern } })) {
+            const detected = responseDetection({
+                ...input,
+                node,
+                body: node.getMatch("BODY")?.text() ?? "",
+                statusText: node.getMatch("STATUS")?.text() ?? "",
+                constructor: chain.label,
+                values,
+            });
+            if (detected)
+                addUnique(errors, seen, node, detected);
+        }
+    }
+    for (const method of ["json", "send"]) {
+        for (const node of tree.findAll({
+            rule: { pattern: `$RESPONSE.${method}($BODY)` },
+        })) {
+            if (node.text().includes(".status(") || node.text().includes(".code("))
+                continue;
+            const detected = responseDetection({
+                ...input,
+                node,
+                body: node.getMatch("BODY")?.text() ?? "",
+                statusText: "",
+                constructor: `response.${method}()`,
+                values,
+            });
+            if (detected)
+                addUnique(errors, seen, node, detected);
+        }
+    }
+    return errors;
+}
+function responseDetection(input) {
+    const code = propertyStaticString(input.body, ["code", "errorCode", "error_code"], input.values);
+    const message = propertyStaticString(input.body, ["message", "detail", "title", "error"], input.values);
+    const status = staticNumber(input.statusText, input.values) ??
+        propertyStaticNumber(input.statusText, ["status", "statusCode", "status_code"], input.values) ??
+        propertyStaticNumber(input.body, ["status", "statusCode", "status_code"], input.values);
+    const explicitlyError = /["']?error["']?\s*:/.test(input.body);
+    if (code === null && !explicitlyError && (status === null || status < 400)) {
+        return null;
+    }
+    return {
+        code,
+        message,
+        status,
+        constructor: input.constructor,
+        language: "typescript",
+        structured: code !== null,
+        allowMessageVariants: false,
+        flow: "returned",
+        location: toLocation(input.root, input.filename, input.node),
+    };
+}
+function namedMatches(node, name) {
+    return node.getMultipleMatches(name).filter((item) => item.isNamed());
+}
+function resolveValue(text, values) {
+    return staticString(text, values) ?? staticNumber(text, values);
+}
+function addUnique(errors, seen, node, detected) {
+    const range = node.range();
+    const key = `${range.start.index}:${range.end.index}`;
+    if (seen.has(key))
+        return;
+    seen.add(key);
+    errors.push(detected);
 }
 //# sourceMappingURL=typescript.js.map

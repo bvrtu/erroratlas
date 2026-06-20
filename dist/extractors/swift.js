@@ -1,6 +1,6 @@
 import { parse } from "@ast-grep/napi";
 import { ensureDynamicLanguages } from "./languages.js";
-import { detectedFromArguments, literalString, toLocation } from "./shared.js";
+import { detectedFromArguments, inferErrorFlow, literalString, toLocation, } from "./shared.js";
 export function extractSwiftErrors(input) {
     ensureDynamicLanguages();
     const tree = parse("swift", input.source).root();
@@ -51,6 +51,7 @@ function unstructured(input, node, constructor, args) {
         language: "swift",
         structured: false,
         allowMessageVariants: false,
+        flow: inferErrorFlow(node),
         location: toLocation(input.root, input.filename, node),
     };
 }

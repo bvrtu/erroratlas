@@ -54,6 +54,7 @@ export function buildCatalog(
           ...item.location,
           language: item.language,
           constructor: item.constructor,
+          ...(item.flow ? { flow: item.flow } : {}),
         })),
       };
     })

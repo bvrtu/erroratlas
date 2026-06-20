@@ -1,7 +1,7 @@
 {
   "name": "erroratlas",
-  "version": "0.2.0",
-  "description": "AST-powered error catalog and documentation drift checker for TypeScript, Python, Java, Dart, and Swift.",
+  "version": "0.3.0",
+  "description": "Static and runtime error contract analysis with catalog, OpenAPI drift, and CI enforcement across nine languages.",
   "author": "bvrtu",
   "type": "module",
   "bin": {
@@ -44,6 +44,11 @@
     "java",
     "dart",
     "swift",
+    "go",
+    "csharp",
+    "kotlin",
+    "openapi",
+    "observability",
     "sarif"
   ],
   "license": "MIT",
@@ -59,13 +64,17 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@ast-grep/lang-csharp": "^0.0.6",
     "@ast-grep/lang-dart": "^0.0.7",
+    "@ast-grep/lang-go": "^0.0.6",
     "@ast-grep/lang-java": "^0.0.7",
+    "@ast-grep/lang-kotlin": "^0.0.7",
     "@ast-grep/lang-python": "^0.0.6",
     "@ast-grep/lang-swift": "^0.0.8",
     "@ast-grep/napi": "^0.43.0",
     "commander": "^14.0.2",
-    "fast-glob": "^3.3.3"
+    "fast-glob": "^3.3.3",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/node": "^24.10.0",

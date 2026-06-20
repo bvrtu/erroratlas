@@ -15,6 +15,17 @@ import {
   renderConsole,
   renderMarkdown,
   renderSarif,
+  compareCatalogWithOpenApi,
+  readOpenApiContract,
+  readRuntimeEvents,
+  renderRuntimeSummary,
+  summarizeRuntimeEvents,
+  applyCatalogDocumentation,
+  applySourceFixes,
+  planSourceFixes,
+  renderCatalogSuggestions,
+  renderSourceFixes,
+  suggestCatalogDocumentation,
   scanProject,
   shouldFail,
 } from "./index.js";
@@ -73,6 +84,31 @@ program
   );
 
 program
+  .command("runtime-report")
+  .description("Summarize locally collected ErrorAtlas runtime events")
+  .argument("[file]", "JSONL runtime event file", ".erroratlas/runtime.jsonl")
+  .addOption(
+    new Option("-f, --format <format>", "output format")
+      .choices(["console", "json"])
+      .default("console"),
+  )
+  .option("-o, --output <file>", "write output to a file")
+  .action(
+    async (
+      filename: string,
+      options: { format: "console" | "json"; output?: string },
+    ) => {
+      const absolute = path.resolve(filename);
+      const summary = summarizeRuntimeEvents(await readRuntimeEvents(absolute));
+      const output =
+        options.format === "json"
+          ? `${JSON.stringify(summary, null, 2)}\n`
+          : renderRuntimeSummary(summary);
+      await emit(output, options.output, process.cwd());
+    },
+  );
+
+program
   .command("generate")
   .description("Generate the JSON catalog and Markdown error reference")
   .argument("[path]", "project root", ".")
@@ -113,12 +149,68 @@ program
   );
 
 program
+  .command("enrich")
+  .description("Suggest or apply deterministic catalog documentation")
+  .argument("[path]", "project root", ".")
+  .option("--catalog <file>", "override the configured catalog path")
+  .option("--write", "write suggestions into empty catalog fields", false)
+  .action(
+    async (
+      projectPath: string,
+      options: { catalog?: string; write: boolean },
+    ) => {
+      const root = path.resolve(projectPath);
+      const config = await loadConfig(root);
+      const catalogPath = path.resolve(root, options.catalog ?? config.catalog);
+      const catalog = await readCatalog(catalogPath);
+      const suggestions = suggestCatalogDocumentation(catalog);
+      process.stdout.write(renderCatalogSuggestions(suggestions));
+      if (options.write && suggestions.length > 0) {
+        await writeText(
+          catalogPath,
+          `${JSON.stringify(
+            applyCatalogDocumentation(catalog, suggestions),
+            null,
+            2,
+          )}\n`,
+        );
+        process.stdout.write(
+          `Updated ${suggestions.length} catalog entries in ${relative(root, catalogPath)}.\n`,
+        );
+      } else if (!options.write && suggestions.length > 0) {
+        process.stdout.write("Run with --write to apply these suggestions.\n");
+      }
+    },
+  );
+
+program
+  .command("fix")
+  .description(
+    "Preview or apply safe machine-code additions to API error responses",
+  )
+  .argument("[path]", "project root", ".")
+  .option("--write", "apply the proposed source changes", false)
+  .action(async (projectPath: string, options: { write: boolean }) => {
+    const root = path.resolve(projectPath);
+    const config = await loadConfig(root);
+    const fixes = await planSourceFixes(root, config);
+    process.stdout.write(renderSourceFixes(fixes));
+    if (options.write && fixes.length > 0) {
+      await applySourceFixes(root, fixes);
+      process.stdout.write(`Applied ${fixes.length} safe source fixes.\n`);
+    } else if (!options.write && fixes.length > 0) {
+      process.stdout.write("Run with --write to apply these source changes.\n");
+    }
+  });
+
+program
   .command("check")
   .description("Fail when source errors and the committed catalog drift apart")
   .argument("[path]", "project root", ".")
   .addOption(formatOption())
   .option("-o, --output <file>", "write output to a file")
   .option("--catalog <file>", "override the configured catalog path")
+  .option("--openapi <file>", "compare against an OpenAPI or Swagger document")
   .addOption(
     new Option("--fail-on <severity>", "minimum failing severity").choices([
       "error",
@@ -132,6 +224,7 @@ program
         format: OutputFormat;
         output?: string;
         catalog?: string;
+        openapi?: string;
         failOn?: "error" | "warning";
       },
     ) => {
@@ -152,6 +245,17 @@ program
       }
 
       const diagnostics = compareWithCatalog(scan, catalog);
+      const openapi = options.openapi ?? config.openapi;
+      if (openapi) {
+        const openapiPath = path.resolve(root, openapi);
+        diagnostics.push(
+          ...compareCatalogWithOpenApi(
+            buildCatalog(scan.errors, null, catalog.generatedAt),
+            await readOpenApiContract(openapiPath),
+          ),
+        );
+        diagnostics.sort(compareDiagnosticsForCli);
+      }
       const output = renderOutput(options.format, scan, diagnostics);
       await emit(output, options.output, root);
       if (shouldFail(diagnostics, options.failOn ?? config.failOn))
@@ -215,4 +319,14 @@ async function exists(filename: string): Promise<boolean> {
 
 function relative(root: string, filename: string): string {
   return path.relative(root, filename).split(path.sep).join("/") || ".";
+}
+
+function compareDiagnosticsForCli(left: Diagnostic, right: Diagnostic): number {
+  const leftFile = left.location?.file ?? "";
+  const rightFile = right.location?.file ?? "";
+  return (
+    leftFile.localeCompare(rightFile) ||
+    (left.location?.line ?? 0) - (right.location?.line ?? 0) ||
+    left.ruleId.localeCompare(right.ruleId)
+  );
 }

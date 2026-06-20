@@ -2,7 +2,10 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config.js";
 import { extractDartErrors } from "../src/extractors/dart.js";
+import { extractCSharpErrors } from "../src/extractors/csharp.js";
+import { extractGoErrors } from "../src/extractors/go.js";
 import { extractJavaErrors } from "../src/extractors/java.js";
+import { extractKotlinErrors } from "../src/extractors/kotlin.js";
 import { extractPythonErrors } from "../src/extractors/python.js";
 import { extractSwiftErrors } from "../src/extractors/swift.js";
 import { extractTypeScriptErrors } from "../src/extractors/typescript.js";
@@ -84,6 +87,113 @@ describe("TypeScript extraction", () => {
         structured: false,
       }),
     ]);
+  });
+
+  it("extracts local constants, direct factories, and API error responses", async () => {
+    const config = await loadConfig(root);
+    const errors = extractTypeScriptErrors({
+      root,
+      filename: path.join(root, "app/api.ts"),
+      constructors: config.constructors.typescript,
+      source: `
+        const DIRECT_CODE = "DIRECT_FAILURE";
+        const DIRECT_MESSAGE = "Direct failure";
+        const DIRECT_STATUS = 409;
+        const makeFailure = (code) => new AppError(code, "Factory failure", 422);
+
+        function direct() {
+          throw new AppError(DIRECT_CODE, DIRECT_MESSAGE, DIRECT_STATUS);
+        }
+        function factory() {
+          throw makeFailure("FACTORY_FAILURE");
+        }
+        function next() {
+          return NextResponse.json(
+            { code: "NEXT_FAILURE", message: "Next failure" },
+            { status: 400 },
+          );
+        }
+        function express(res) {
+          res.status(401).json({ code: "AUTH_REQUIRED", message: "Sign in" });
+          res.json({ ok: true });
+        }
+        function fastify(reply) {
+          reply.code(503).send({ errorCode: "UPSTREAM_DOWN", error: "Retry later" });
+        }
+      `,
+    });
+
+    expect(errors).toHaveLength(5);
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "DIRECT_FAILURE",
+          message: "Direct failure",
+          status: 409,
+          constructor: "AppError",
+        }),
+        expect.objectContaining({
+          code: "FACTORY_FAILURE",
+          status: 422,
+          constructor: "makeFailure()",
+        }),
+        expect.objectContaining({
+          code: "NEXT_FAILURE",
+          status: 400,
+          constructor: "NextResponse.json",
+        }),
+        expect.objectContaining({
+          code: "AUTH_REQUIRED",
+          status: 401,
+          constructor: "response.status().json()",
+        }),
+        expect.objectContaining({
+          code: "UPSTREAM_DOWN",
+          message: "Retry later",
+          status: 503,
+          constructor: "reply.code().send()",
+        }),
+      ]),
+    );
+  });
+
+  it("classifies basic try/catch and response control flow", async () => {
+    const config = await loadConfig(root);
+    const errors = extractTypeScriptErrors({
+      root,
+      filename: path.join(root, "src/flow.ts"),
+      constructors: config.constructors.typescript,
+      source: `
+        function run() {
+          try {
+            throw new AppError("CAUGHT_ERROR", "Caught", 400);
+          } catch (error) {
+            throw new AppError("RETHROWN_ERROR", "Rethrown", 500);
+          }
+        }
+        function direct() {
+          throw new AppError("PROPAGATED_ERROR", "Propagated", 500);
+        }
+        function response() {
+          return NextResponse.json(
+            { code: "RETURNED_ERROR", message: "Returned" },
+            { status: 409 },
+          );
+        }
+      `,
+    });
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "CAUGHT_ERROR", flow: "caught" }),
+        expect.objectContaining({ code: "RETHROWN_ERROR", flow: "rethrown" }),
+        expect.objectContaining({
+          code: "PROPAGATED_ERROR",
+          flow: "propagated",
+        }),
+        expect.objectContaining({ code: "RETURNED_ERROR", flow: "returned" }),
+      ]),
+    );
   });
 });
 
@@ -241,6 +351,103 @@ describe("Swift extraction", () => {
         constructor: "NetworkError.offline",
         message: null,
         language: "swift",
+      }),
+    ]);
+  });
+});
+
+describe("Go extraction", () => {
+  it("finds structured returned errors, panics, and generic errors", async () => {
+    const config = await loadConfig(root);
+    const errors = extractGoErrors({
+      root,
+      filename: path.join(root, "service.go"),
+      constructors: config.constructors.go,
+      source: `
+        package service
+        func load() error {
+          return NewAppError("USER_NOT_FOUND", "No user", 404)
+        }
+        func fail() {
+          panic(NewAPIError("INTERNAL_FAILURE", "Failed", 500))
+        }
+        func validate() error {
+          return errors.New("Invalid input")
+        }
+      `,
+    });
+
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "USER_NOT_FOUND",
+        status: 404,
+        language: "go",
+      }),
+      expect.objectContaining({
+        code: "INTERNAL_FAILURE",
+        status: 500,
+        language: "go",
+      }),
+      expect.objectContaining({
+        code: null,
+        constructor: "errors.New",
+        language: "go",
+      }),
+    ]);
+  });
+});
+
+describe("C# extraction", () => {
+  it("finds structured and generic exceptions", async () => {
+    const config = await loadConfig(root);
+    const errors = extractCSharpErrors({
+      root,
+      filename: path.join(root, "Users.cs"),
+      constructors: config.constructors.csharp,
+      source: `
+        class Users {
+          void Find() { throw new ApiException("USER_NOT_FOUND", "No user", 404); }
+          void Fail() { throw new InvalidOperationException("Invalid state"); }
+        }
+      `,
+    });
+
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "USER_NOT_FOUND",
+        status: 404,
+        language: "csharp",
+      }),
+      expect.objectContaining({
+        code: null,
+        constructor: "InvalidOperationException",
+      }),
+    ]);
+  });
+});
+
+describe("Kotlin extraction", () => {
+  it("finds structured and generic exceptions", async () => {
+    const config = await loadConfig(root);
+    const errors = extractKotlinErrors({
+      root,
+      filename: path.join(root, "Users.kt"),
+      constructors: config.constructors.kotlin,
+      source: `
+        fun find() { throw ApiException("USER_NOT_FOUND", "No user", 404) }
+        fun fail() { throw IllegalStateException("Invalid state") }
+      `,
+    });
+
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "USER_NOT_FOUND",
+        status: 404,
+        language: "kotlin",
+      }),
+      expect.objectContaining({
+        code: null,
+        constructor: "IllegalStateException",
       }),
     ]);
   });

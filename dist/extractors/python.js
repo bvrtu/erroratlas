@@ -1,6 +1,6 @@
 import { parse } from "@ast-grep/napi";
 import { ensureDynamicLanguages } from "./languages.js";
-import { detectedFromArguments, literalString, propertyNumber, propertyString, toLocation, } from "./shared.js";
+import { detectedFromArguments, inferErrorFlow, literalString, propertyNumber, propertyString, toLocation, } from "./shared.js";
 export function extractPythonErrors(input) {
     ensureDynamicLanguages();
     const tree = parse("python", input.source).root();
@@ -60,6 +60,7 @@ export function extractPythonErrors(input) {
             language: "python",
             structured: false,
             allowMessageVariants: false,
+            flow: inferErrorFlow(node),
             location: toLocation(input.root, input.filename, node),
         });
     }

@@ -3,6 +3,7 @@ import type { ConstructorSpec, DetectedError } from "../types.js";
 import { ensureDynamicLanguages } from "./languages.js";
 import {
   detectedFromArguments,
+  inferErrorFlow,
   literalString,
   propertyNumber,
   propertyString,
@@ -78,6 +79,7 @@ export function extractPythonErrors(input: {
       language: "python",
       structured: false,
       allowMessageVariants: false,
+      flow: inferErrorFlow(node),
       location: toLocation(input.root, input.filename, node),
     });
   }

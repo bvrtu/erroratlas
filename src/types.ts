@@ -3,9 +3,13 @@ export type SupportedLanguage =
   | "python"
   | "java"
   | "dart"
-  | "swift";
+  | "swift"
+  | "go"
+  | "csharp"
+  | "kotlin";
 
 export type Severity = "error" | "warning" | "note";
+export type ErrorFlow = "propagated" | "caught" | "rethrown" | "returned";
 
 export interface SourceLocation {
   file: string;
@@ -29,6 +33,7 @@ export interface ErrorAtlasConfig {
   exclude: string[];
   catalog: string;
   docs: string;
+  openapi: string | null;
   failOn: Exclude<Severity, "note">;
   constructors: Record<SupportedLanguage, ConstructorSpec[]>;
 }
@@ -41,12 +46,14 @@ export interface DetectedError {
   language: SupportedLanguage;
   structured: boolean;
   allowMessageVariants: boolean;
+  flow?: ErrorFlow;
   location: SourceLocation;
 }
 
 export interface CatalogOccurrence extends SourceLocation {
   language: SupportedLanguage;
   constructor: string;
+  flow?: ErrorFlow;
 }
 
 export interface CatalogEntry {
@@ -73,7 +80,11 @@ export interface Diagnostic {
     | "stale-error"
     | "message-drift"
     | "status-drift"
-    | "missing-resolution";
+    | "missing-resolution"
+    | "openapi-undocumented-error"
+    | "openapi-stale-error"
+    | "openapi-status-drift"
+    | "openapi-no-error-codes";
   severity: Severity;
   message: string;
   code: string | null;
@@ -96,6 +107,7 @@ export interface RawConfig {
   exclude?: string[];
   catalog?: string;
   docs?: string;
+  openapi?: string | null;
   failOn?: Exclude<Severity, "note">;
   useDefaultConstructors?: boolean;
   constructors?: Partial<Record<SupportedLanguage, ConstructorSpec[]>>;

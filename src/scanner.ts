@@ -4,8 +4,12 @@ import fg from "fast-glob";
 import { extractPythonErrors } from "./extractors/python.js";
 import { extractDartErrors } from "./extractors/dart.js";
 import { extractJavaErrors } from "./extractors/java.js";
+import { extractCSharpErrors } from "./extractors/csharp.js";
+import { extractGoErrors } from "./extractors/go.js";
+import { extractKotlinErrors } from "./extractors/kotlin.js";
 import { extractSwiftErrors } from "./extractors/swift.js";
 import { extractTypeScriptErrors } from "./extractors/typescript.js";
+import { buildTypeScriptStaticValues } from "./extractors/typescript-symbols.js";
 import type {
   DetectedError,
   Diagnostic,
@@ -27,10 +31,20 @@ export async function scanProject(
     followSymbolicLinks: false,
   });
 
-  const detected = await Promise.all(
+  const sources = await Promise.all(
     files.sort().map(async (relativeFile) => {
       const filename = path.join(absoluteRoot, relativeFile);
       const source = await readFile(filename, "utf8");
+      return { filename, source };
+    }),
+  );
+  const typescriptSources = sources.filter(({ filename }) =>
+    /\.[jt]sx?$/.test(filename),
+  );
+  const staticValues = buildTypeScriptStaticValues(typescriptSources);
+
+  const detected = await Promise.all(
+    sources.map(async ({ filename, source }) => {
       if (filename.endsWith(".py")) {
         return extractPythonErrors({
           root: absoluteRoot,
@@ -63,11 +77,37 @@ export async function scanProject(
           constructors: config.constructors.swift,
         });
       }
+      if (filename.endsWith(".go")) {
+        return extractGoErrors({
+          root: absoluteRoot,
+          filename,
+          source,
+          constructors: config.constructors.go,
+        });
+      }
+      if (filename.endsWith(".cs")) {
+        return extractCSharpErrors({
+          root: absoluteRoot,
+          filename,
+          source,
+          constructors: config.constructors.csharp,
+        });
+      }
+      if (filename.endsWith(".kt") || filename.endsWith(".kts")) {
+        return extractKotlinErrors({
+          root: absoluteRoot,
+          filename,
+          source,
+          constructors: config.constructors.kotlin,
+        });
+      }
+      const fileStaticValues = staticValues.get(path.resolve(filename));
       return extractTypeScriptErrors({
         root: absoluteRoot,
         filename,
         source,
         constructors: config.constructors.typescript,
+        ...(fileStaticValues ? { staticValues: fileStaticValues } : {}),
       });
     }),
   );

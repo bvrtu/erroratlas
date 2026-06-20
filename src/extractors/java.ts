@@ -1,7 +1,12 @@
 import { parse } from "@ast-grep/napi";
 import type { ConstructorSpec, DetectedError } from "../types.js";
 import { ensureDynamicLanguages } from "./languages.js";
-import { detectedFromArguments, literalString, toLocation } from "./shared.js";
+import {
+  detectedFromArguments,
+  inferErrorFlow,
+  literalString,
+  toLocation,
+} from "./shared.js";
 
 export function extractJavaErrors(input: {
   root: string;
@@ -58,6 +63,7 @@ export function extractJavaErrors(input: {
       language: "java",
       structured: false,
       allowMessageVariants: false,
+      flow: inferErrorFlow(node),
       location: toLocation(input.root, input.filename, node),
     });
   }

@@ -18,9 +18,9 @@ The first command requires authenticated GitHub CLI access to enumerate reposito
 ## Interpretation
 
 - `filesScanned` counts files in languages supported by that ErrorAtlas version after default exclusions.
-- `structuredErrors` counts throw/raise sites with a static machine-readable code.
-- `unstructuredErrors` counts throw/raise sites without such a code.
-- A zero-error repository may have no throw/raise sites, may use return-value error handling, or may rely on unsupported framework patterns. It is not automatically “better documented.”
+- `structuredErrors` counts detected throw/raise/return/response sites with a static machine-readable code.
+- `unstructuredErrors` counts detected error sites without such a code.
+- A zero-error repository may have no detected error sites or may rely on unsupported framework patterns. It is not automatically “better documented.”
 
 ## License
 

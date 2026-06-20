@@ -44,4 +44,36 @@ describe("project scanner", () => {
     ]);
     expect(result.diagnostics).toEqual([]);
   });
+
+  it("resolves literals imported from relative TypeScript modules", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-"));
+    temporaryDirectories.push(root);
+    await mkdir(path.join(root, "src"));
+    await writeFile(
+      path.join(root, "src", "codes.ts"),
+      `
+        export const ERROR_CODE = "IMPORTED_FAILURE";
+        export const ERROR_MESSAGE = "Imported failure";
+        export const ERROR_STATUS = 502;
+      `,
+    );
+    await writeFile(
+      path.join(root, "src", "service.ts"),
+      `
+        import { ERROR_CODE, ERROR_MESSAGE, ERROR_STATUS as STATUS } from "./codes";
+        throw new AppError(ERROR_CODE, ERROR_MESSAGE, STATUS);
+      `,
+    );
+
+    const result = await scanProject(root, await loadConfig(root));
+
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        code: "IMPORTED_FAILURE",
+        message: "Imported failure",
+        status: 502,
+        structured: true,
+      }),
+    ]);
+  });
 });

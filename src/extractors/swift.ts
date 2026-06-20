@@ -2,7 +2,12 @@ import { parse } from "@ast-grep/napi";
 import type { SgNode } from "@ast-grep/napi";
 import type { ConstructorSpec, DetectedError } from "../types.js";
 import { ensureDynamicLanguages } from "./languages.js";
-import { detectedFromArguments, literalString, toLocation } from "./shared.js";
+import {
+  detectedFromArguments,
+  inferErrorFlow,
+  literalString,
+  toLocation,
+} from "./shared.js";
 
 export function extractSwiftErrors(input: {
   root: string;
@@ -69,6 +74,7 @@ function unstructured(
     language: "swift",
     structured: false,
     allowMessageVariants: false,
+    flow: inferErrorFlow(node),
     location: toLocation(input.root, input.filename, node),
   };
 }

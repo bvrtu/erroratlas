@@ -1,6 +1,6 @@
 import { parse } from "@ast-grep/napi";
 import { ensureDynamicLanguages } from "./languages.js";
-import { detectedFromArguments, literalString, toLocation } from "./shared.js";
+import { detectedFromArguments, inferErrorFlow, literalString, toLocation, } from "./shared.js";
 export function extractDartErrors(input) {
     ensureDynamicLanguages();
     const tree = parse("dart", input.source).root();
@@ -44,6 +44,7 @@ export function extractDartErrors(input) {
             language: "dart",
             structured: false,
             allowMessageVariants: false,
+            flow: inferErrorFlow(node),
             location: toLocation(input.root, input.filename, node),
         });
     }
@@ -63,6 +64,7 @@ export function extractDartErrors(input) {
             language: "dart",
             structured: false,
             allowMessageVariants: false,
+            flow: inferErrorFlow(node),
             location: toLocation(input.root, input.filename, node),
         });
     }

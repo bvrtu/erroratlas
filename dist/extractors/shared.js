@@ -51,52 +51,137 @@ export function propertyNumber(text, names) {
     }
     return null;
 }
+export function staticString(text, values = new Map()) {
+    const literal = literalString(text);
+    if (literal !== null)
+        return literal;
+    const value = values.get(text.trim());
+    return typeof value === "string" ? value : null;
+}
+export function staticNumber(text, values = new Map()) {
+    const trimmed = text.trim();
+    const literal = /^-?(?:\d+\.?\d*|\.\d+)$/.test(trimmed)
+        ? literalNumber(trimmed)
+        : null;
+    if (literal !== null)
+        return literal;
+    const value = values.get(trimmed);
+    return typeof value === "number" ? value : null;
+}
+export function propertyStaticString(text, names, values = new Map()) {
+    const literal = propertyString(text, names);
+    if (literal !== null)
+        return literal;
+    for (const name of names) {
+        const escaped = escapeRegExp(name);
+        const match = text.match(new RegExp(`["']?${escaped}["']?\\s*[:=]\\s*([A-Z_a-z$][\\w$]*(?:\\.[A-Z_a-z$][\\w$]*)*)`));
+        if (match?.[1]) {
+            const value = values.get(match[1]);
+            if (typeof value === "string")
+                return value;
+        }
+    }
+    return null;
+}
+export function propertyStaticNumber(text, names, values = new Map()) {
+    const literal = propertyNumber(text, names);
+    if (literal !== null)
+        return literal;
+    for (const name of names) {
+        const escaped = escapeRegExp(name);
+        const match = text.match(new RegExp(`["']?${escaped}["']?\\s*[:=]\\s*([A-Z_a-z$][\\w$]*(?:\\.[A-Z_a-z$][\\w$]*)*)`));
+        if (match?.[1]) {
+            const value = values.get(match[1]);
+            if (typeof value === "number")
+                return value;
+        }
+    }
+    return null;
+}
 export function detectedFromArguments(input) {
+    return detectedFromArgumentTexts({
+        ...input,
+        args: input.args.map((item) => item.text()),
+    });
+}
+export function detectedFromArgumentTexts(input) {
     const { args, spec } = input;
-    const objectText = args[0]?.text().trim() ?? "";
+    const values = input.values ?? new Map();
+    const objectText = args[0]?.trim() ?? "";
     const isObject = objectText.startsWith("{");
-    const joinedArgs = args.map((item) => item.text()).join(", ");
+    const joinedArgs = args.join(", ");
     const code = isObject
-        ? propertyString(objectText, ["code", "errorCode", "error_code"])
-        : (readStringArgument(args, spec.codeArgument) ??
-            propertyString(joinedArgs, ["code", "errorCode", "error_code"]));
+        ? propertyStaticString(objectText, ["code", "errorCode", "error_code"], values)
+        : (readStringArgument(args, spec.codeArgument, values) ??
+            propertyStaticString(joinedArgs, ["code", "errorCode", "error_code"], values));
     const message = isObject
-        ? propertyString(objectText, ["message", "detail", "title"])
-        : (readStringArgument(args, spec.messageArgument) ??
-            propertyString(joinedArgs, ["message", "detail", "title"]));
+        ? propertyStaticString(objectText, ["message", "detail", "title", "error"], values)
+        : (readStringArgument(args, spec.messageArgument, values) ??
+            propertyStaticString(joinedArgs, ["message", "detail", "title", "error"], values));
     const status = isObject
-        ? (propertyNumber(objectText, ["status", "statusCode", "status_code"]) ??
+        ? (propertyStaticNumber(objectText, ["status", "statusCode", "status_code"], values) ??
             spec.defaultStatus ??
             null)
-        : (readNumberArgument(args, spec.statusArgument) ??
-            propertyNumber(joinedArgs, ["status", "statusCode", "status_code"]) ??
+        : (readNumberArgument(args, spec.statusArgument, values) ??
+            propertyStaticNumber(joinedArgs, ["status", "statusCode", "status_code"], values) ??
             spec.defaultStatus ??
             null);
     return {
         code,
         message,
         status,
-        constructor: spec.name,
+        constructor: input.constructorName ?? spec.name,
         language: input.language,
         structured: code !== null,
         allowMessageVariants: spec.allowMessageVariants === true,
+        flow: input.flow ?? inferErrorFlow(input.node),
         location: toLocation(input.root, input.filename, input.node),
     };
 }
-function readStringArgument(args, index) {
-    if (index === undefined)
-        return null;
-    const text = args[index]?.text();
-    return text === undefined ? null : literalString(text);
+export function inferErrorFlow(node) {
+    let insideCatch = false;
+    for (const ancestor of node.ancestors()) {
+        const kind = String(ancestor.kind());
+        if (kind === "return_statement")
+            return "returned";
+        if (["catch_clause", "except_clause", "catch_block"].includes(kind)) {
+            insideCatch = true;
+        }
+        if (["try_statement", "try_expression", "do_statement"].includes(kind)) {
+            if (insideCatch)
+                return "rethrown";
+            const hasHandler = ancestor
+                .children()
+                .some((child) => ["catch_clause", "except_clause", "catch_block"].includes(String(child.kind())));
+            if (hasHandler)
+                return "caught";
+        }
+        if ([
+            "function_declaration",
+            "function_definition",
+            "method_declaration",
+            "arrow_function",
+            "lambda_expression",
+        ].includes(kind)) {
+            break;
+        }
+    }
+    return "propagated";
 }
-function readNumberArgument(args, index) {
+function readStringArgument(args, index, values) {
     if (index === undefined)
         return null;
-    const text = args[index]?.text();
+    const text = args[index];
+    return text === undefined ? null : staticString(text, values);
+}
+function readNumberArgument(args, index, values) {
+    if (index === undefined)
+        return null;
+    const text = args[index];
     if (text === undefined)
         return null;
-    return (literalNumber(text) ??
-        propertyNumber(text, ["status", "statusCode", "status_code"]));
+    return (staticNumber(text, values) ??
+        propertyStaticNumber(text, ["status", "statusCode", "status_code"], values));
 }
 function escapeRegExp(value) {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

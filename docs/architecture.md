@@ -1,23 +1,24 @@
 # Architecture
 
-ErrorAtlas separates detection, policy, and presentation so each can evolve independently.
+ErrorAtlas separates static detection, contract policy, runtime collection, and presentation so each can evolve independently.
 
 ```text
-source files
-    │
-    ▼
-AST language extractors ──► normalized error definitions
-                                │
-                                ├──► catalog generator ──► JSON + Markdown
-                                │
-committed catalog ──────────────┴──► drift analyzer ─────► console/JSON/SARIF
+source files ──► AST extractors ──► normalized error definitions
+                                          │
+                                          ├──► catalog ──► JSON + Markdown
+committed catalog ─────────────────────────┤
+OpenAPI / Swagger ──► contract extractor ──┴──► drift policy ──► console/JSON/SARIF
+
+application runtime ──► runtime monitor ──► JSONL or explicit HTTP transport
+                                                   │
+                                                   └──► delivery correlation report
 ```
 
 ## Detection
 
-The TypeScript and Python extractors use tree-sitter grammars through ast-grep. AST matching identifies thrown constructor calls; literal parsing is then limited to the matched argument nodes. This avoids false matches in comments, strings, snapshots, and unrelated objects.
+All language extractors use tree-sitter grammars through ast-grep. AST matching identifies thrown/returned constructors and supported response calls; literal parsing is then limited to matched argument or object nodes. This avoids false matches in comments, strings, snapshots, and unrelated objects.
 
-Only values statically visible at the throw site are included in the catalog. A dynamic expression becomes `null` and produces an `unstructured-error` finding instead of a guessed value.
+TypeScript/JavaScript builds a bounded symbol index for immutable literals in the current file and relative imports. It also resolves direct local factory wrappers. Values outside those deterministic boundaries become `null` and produce an `unstructured-error` finding instead of a guess.
 
 ## Normalized model
 
@@ -31,6 +32,7 @@ Every detection becomes the same language-independent record:
   "constructor": "AppError",
   "language": "typescript",
   "structured": true,
+  "flow": "propagated",
   "location": {
     "file": "src/users.ts",
     "line": 42,
@@ -41,11 +43,25 @@ Every detection becomes the same language-independent record:
 }
 ```
 
-Descriptions and resolutions are not inferred from code. They are human-authored fields stored in the committed catalog and preserved across regeneration.
+Descriptions and resolutions are human-editable fields stored in the committed catalog and preserved across regeneration. `erroratlas enrich` can fill empty fields with deterministic, status-aware suggestions but never replaces authored text.
 
 ## Drift policy
 
 The source code is authoritative for the code, static message, status, and occurrences. The catalog is authoritative for description and resolution. `erroratlas check` compares the two representations without modifying either.
+
+When configured, OpenAPI is a third contract surface. ErrorAtlas extracts static codes from 4xx/5xx response examples, enums, constants, and defaults (including local `$ref` targets), then detects source codes absent from OpenAPI, stale OpenAPI codes, and HTTP status drift.
+
+## Runtime model
+
+The optional runtime SDK emits versioned `exception` and `delivery` events. Exception events contain service/environment, error name/message/stack, code/status when present, handled state, mechanism, tags, and an optional trace ID. Delivery events use the same trace ID to state that an error reached an HTTP, UI, queue, or custom boundary.
+
+Transports are application-owned. JSONL is local by default; HTTP requires an explicit endpoint. Transport failures are swallowed after invoking an optional error callback so monitoring cannot take down the monitored application. Error messages and stacks can contain sensitive data, so production users should control retention, redaction, and endpoint access.
+
+The runtime layer does not yet provide hosted storage, alerting, symbolication, or distributed tracing. Its event schema and transport interface are designed so those can be added without coupling them to the static analyzer.
+
+## Safe mutation
+
+`erroratlas fix` is dry-run-first. The initial fixer only adds a generated `code` property to explicit TypeScript/JavaScript API error response objects with static messages. It does not replace exception classes, insert imports, or rewrite control flow. `erroratlas enrich --write` changes only empty catalog documentation fields.
 
 ## Benchmark dataset
 

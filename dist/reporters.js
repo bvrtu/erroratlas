@@ -40,7 +40,7 @@ export function renderMarkdown(catalog) {
         if (error.occurrences.length) {
             lines.push("**Defined at**", "");
             for (const occurrence of error.occurrences) {
-                lines.push(`- \`${occurrence.file}:${occurrence.line}\` (${occurrence.language}, ${occurrence.constructor})`);
+                lines.push(`- \`${occurrence.file}:${occurrence.line}\` (${occurrence.language}, ${occurrence.constructor}${occurrence.flow ? `, ${occurrence.flow}` : ""})`);
             }
             lines.push("");
         }

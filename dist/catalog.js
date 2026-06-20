@@ -34,6 +34,7 @@ export function buildCatalog(errors, previous = null, generatedAt = new Date().t
                 ...item.location,
                 language: item.language,
                 constructor: item.constructor,
+                ...(item.flow ? { flow: item.flow } : {}),
             })),
         };
     })
