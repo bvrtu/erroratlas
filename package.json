@@ -1,0 +1,67 @@
+{
+  "name": "erroratlas",
+  "version": "0.1.0",
+  "description": "Keep application error contracts and documentation in sync.",
+  "author": "bvrtu",
+  "type": "module",
+  "bin": {
+    "erroratlas": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "action.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:cli": "node scripts/cli-smoke.mjs",
+    "test:watch": "vitest",
+    "verify": "npm run format:check && npm run check && npm run test:coverage && npm run build && npm run test:cli",
+    "prepack": "npm run build && npm test && npm run test:cli"
+  },
+  "keywords": [
+    "documentation",
+    "errors",
+    "static-analysis",
+    "cli",
+    "github-action",
+    "developer-tools"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/bvrtu/erroratlas#readme",
+  "bugs": {
+    "url": "https://github.com/bvrtu/erroratlas/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bvrtu/erroratlas.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@ast-grep/lang-python": "^0.0.6",
+    "@ast-grep/napi": "^0.43.0",
+    "commander": "^14.0.2",
+    "fast-glob": "^3.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@vitest/coverage-v8": "^4.1.9",
+    "prettier": "^3.6.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

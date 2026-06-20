@@ -1,0 +1,7 @@
+coverage/
+dist/
+node_modules/
+work/
+package-lock.json
+examples/demo/docs/errors.md
+examples/demo/erroratlas.catalog.json

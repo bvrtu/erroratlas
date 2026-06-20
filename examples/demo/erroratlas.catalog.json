@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-20T12:00:56.790Z",
+  "errors": [
+    {
+      "code": "CARD_REQUIRED",
+      "message": "A card token is required",
+      "status": 400,
+      "description": "The request did not include a card token.",
+      "resolution": "Send a non-empty card token and retry the request.",
+      "occurrences": [
+        {
+          "file": "src/payments.py",
+          "line": 7,
+          "column": 15,
+          "endLine": 7,
+          "endColumn": 73,
+          "language": "python",
+          "constructor": "AppError"
+        }
+      ]
+    },
+    {
+      "code": "PAYMENT_DECLINED",
+      "message": "The payment was declined",
+      "status": 402,
+      "description": "The payment provider declined the attempted charge.",
+      "resolution": "Ask the customer to use another payment method or contact their bank.",
+      "occurrences": [
+        {
+          "file": "src/payments.py",
+          "line": 8,
+          "column": 11,
+          "endLine": 8,
+          "endColumn": 72,
+          "language": "python",
+          "constructor": "AppError"
+        }
+      ]
+    },
+    {
+      "code": "USER_ID_REQUIRED",
+      "message": "A user id is required",
+      "status": 400,
+      "description": "The request did not include a user identifier.",
+      "resolution": "Provide a valid user id in the request.",
+      "occurrences": [
+        {
+          "file": "src/users.ts",
+          "line": 13,
+          "column": 11,
+          "endLine": 15,
+          "endColumn": 7,
+          "language": "typescript",
+          "constructor": "AppError"
+        }
+      ]
+    },
+    {
+      "code": "USER_NOT_FOUND",
+      "message": "The requested user was not found",
+      "status": 404,
+      "description": "No user exists for the supplied identifier.",
+      "resolution": "Verify the user id or create the user before retrying.",
+      "occurrences": [
+        {
+          "file": "src/users.ts",
+          "line": 17,
+          "column": 9,
+          "endLine": 19,
+          "endColumn": 5,
+          "language": "typescript",
+          "constructor": "AppError"
+        }
+      ]
+    }
+  ]
+}

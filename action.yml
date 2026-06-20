@@ -1,0 +1,37 @@
+name: ErrorAtlas
+description: Keep application error contracts and documentation in sync.
+author: bvrtu
+branding:
+  icon: map
+  color: purple
+inputs:
+  path:
+    description: Project path to scan.
+    required: false
+    default: .
+  fail-on:
+    description: Minimum failing severity (error or warning).
+    required: false
+    default: error
+runs:
+  using: composite
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: ${{ github.action_path }}/package-lock.json
+    - name: Install ErrorAtlas runtime
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci --omit=dev
+    - name: Check error catalog drift
+      shell: bash
+      env:
+        ERRORATLAS_PATH: ${{ inputs.path }}
+        ERRORATLAS_FAIL_ON: ${{ inputs.fail-on }}
+      run: >-
+        node "${GITHUB_ACTION_PATH}/dist/cli.js"
+        check "${ERRORATLAS_PATH}"
+        --fail-on "${ERRORATLAS_FAIL_ON}"

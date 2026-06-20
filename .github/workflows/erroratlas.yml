@@ -1,0 +1,32 @@
+name: Error catalog
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  erroratlas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Check catalog drift
+        id: scan
+        run: node dist/cli.js check examples/demo --format sarif --output erroratlas.sarif
+        continue-on-error: true
+      - name: Upload results
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: examples/demo/erroratlas.sarif
+      - name: Enforce result
+        if: steps.scan.outcome == 'failure'
+        run: exit 1

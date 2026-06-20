@@ -1,0 +1,78 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
+
+const exec = promisify(execFile);
+const root = await mkdtemp(path.join(tmpdir(), "erroratlas-cli-"));
+const cli = path.resolve("dist/cli.js");
+
+try {
+  await mkdir(path.join(root, "src"));
+  await writeFile(
+    path.join(root, "src", "service.ts"),
+    'throw new AppError("SERVICE_DOWN", "Service is unavailable", { status: 503 });\n',
+  );
+
+  const generated = await run("generate", root);
+  assert(
+    generated.stdout.includes("1 structured errors"),
+    "generate should find one error",
+  );
+
+  const catalog = JSON.parse(
+    await readFile(path.join(root, "erroratlas.catalog.json"), "utf8"),
+  );
+  assert(
+    catalog.errors[0].code === "SERVICE_DOWN",
+    "generate should write the detected code",
+  );
+  assert(
+    await readFile(path.join(root, "docs", "errors.md"), "utf8"),
+    "generate should write Markdown",
+  );
+
+  const clean = await run("check", root, "--format", "json");
+  assert(
+    JSON.parse(clean.stdout).diagnostics.length === 1,
+    "empty resolution should be a note",
+  );
+
+  await writeFile(
+    path.join(root, "src", "service.ts"),
+    'throw new AppError("SERVICE_DOWN", "Upstream service failed", { status: 503 });\n',
+  );
+  const drift = await runExpectingFailure("check", root, "--format", "json");
+  assert(drift.code === 1, "catalog drift should exit with code 1");
+  assert(
+    JSON.parse(drift.stdout).diagnostics.some(
+      (item) => item.ruleId === "message-drift",
+    ),
+    "catalog drift should report message-drift",
+  );
+
+  process.stdout.write(
+    "CLI smoke test passed: generate, clean check, and drift failure.\n",
+  );
+} finally {
+  await rm(root, { recursive: true, force: true });
+}
+
+async function run(...args) {
+  return exec(process.execPath, [cli, ...args], { encoding: "utf8" });
+}
+
+async function runExpectingFailure(...args) {
+  try {
+    await run(...args);
+    throw new Error("Command unexpectedly succeeded");
+  } catch (error) {
+    if (typeof error.code !== "number") throw error;
+    return error;
+  }
+}
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}

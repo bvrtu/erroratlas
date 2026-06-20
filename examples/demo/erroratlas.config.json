@@ -1,0 +1,12 @@
+{
+  "include": ["src/**/*.{ts,py}"],
+  "exclude": [],
+  "catalog": "erroratlas.catalog.json",
+  "docs": "docs/errors.md",
+  "failOn": "error",
+  "useDefaultConstructors": true,
+  "constructors": {
+    "typescript": [],
+    "python": []
+  }
+}
