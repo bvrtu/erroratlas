@@ -163,6 +163,67 @@ describe("project scanner", () => {
     ]);
   });
 
+  it("resolves a proven value through a two-edge export-star barrel", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-"));
+    temporaryDirectories.push(root);
+    await mkdir(path.join(root, "src"));
+    await writeFile(
+      path.join(root, "src", "codes.ts"),
+      'export const CODE = "BARREL_FAILURE";\n',
+    );
+    await writeFile(
+      path.join(root, "src", "index.ts"),
+      'export * from "./codes";\n',
+    );
+    await writeFile(
+      path.join(root, "src", "service.ts"),
+      `
+        import { CODE } from "./index";
+        throw new AppError(CODE, "Barrel failure", 500);
+      `,
+    );
+
+    const result = await scanProject(root, await loadConfig(root));
+
+    expect(result.errors).toEqual([
+      expect.objectContaining({ code: "BARREL_FAILURE", structured: true }),
+    ]);
+  });
+
+  it("does not guess when export-star barrels expose conflicting values", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-"));
+    temporaryDirectories.push(root);
+    await mkdir(path.join(root, "src"));
+    await writeFile(
+      path.join(root, "src", "first.ts"),
+      'export const CODE = "FIRST_FAILURE";\n',
+    );
+    await writeFile(
+      path.join(root, "src", "second.ts"),
+      'export const CODE = "SECOND_FAILURE";\n',
+    );
+    await writeFile(
+      path.join(root, "src", "index.ts"),
+      'export * from "./first";\nexport * from "./second";\n',
+    );
+    await writeFile(
+      path.join(root, "src", "service.ts"),
+      `
+        import { CODE } from "./index";
+        throw new AppError(CODE, "Ambiguous failure", 500);
+      `,
+    );
+
+    const result = await scanProject(root, await loadConfig(root));
+
+    expect(result.errors).toEqual([
+      expect.objectContaining({ code: null, structured: false }),
+    ]);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ ruleId: "unstructured-error" }),
+    ]);
+  });
+
   it("incrementally scans changed files and bounded reverse importers", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "erroratlas-"));
     temporaryDirectories.push(root);

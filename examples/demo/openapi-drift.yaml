@@ -1,0 +1,37 @@
+openapi: 3.1.0
+info:
+  title: Intentionally drifted ErrorAtlas demo API
+  version: 1.0.0
+paths:
+  /payments/card:
+    post:
+      responses:
+        "400":
+          content:
+            application/json:
+              example:
+                code: CARD_REQUIRED
+  /users/validate:
+    post:
+      responses:
+        "400":
+          content:
+            application/json:
+              example:
+                code: USER_ID_REQUIRED
+  /users/{id}:
+    get:
+      responses:
+        "410":
+          content:
+            application/json:
+              example:
+                code: USER_NOT_FOUND
+  /legacy:
+    get:
+      responses:
+        "410":
+          content:
+            application/json:
+              example:
+                code: OLD_ERROR

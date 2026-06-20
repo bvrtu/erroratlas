@@ -17,6 +17,12 @@ It is not a generic observability platform and not merely an OpenAPI diff. See [
 Scanned 38 files · 17 structured errors · 1 error · 1 warning · 0 notes
 ```
 
+## What ErrorAtlas is—and is not
+
+ErrorAtlas is a local CLI and library for proving error-contract facts from source, preserving human-owned catalog documentation, and detecting drift against that catalog and OpenAPI. It is designed to run before merge and can optionally correlate those contracts with runtime events.
+
+It is not a hosted monitoring service, a general-purpose static analyzer, an OpenAPI revision diff engine, or a framework that takes over exception handling. Dynamic values remain unstructured unless the bounded resolver can prove them.
+
 ## Why ErrorAtlas?
 
 API references usually document success paths well. Application-specific errors are often maintained in a separate table—or not documented at all. That table quietly becomes stale as the code changes.
@@ -51,6 +57,7 @@ npx erroratlas check
 ```
 
 See the generated [demo error catalog](examples/demo/docs/errors.md) and its [JSON source](examples/demo/erroratlas.catalog.json).
+The [end-to-end demo](examples/demo/README.md) also includes a matching OpenAPI contract and a committed SARIF drift sample.
 
 ## What it recognizes
 
@@ -249,13 +256,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: bvrtu/erroratlas@v0.4.0
+      - uses: bvrtu/erroratlas@v0.4.1
         with:
           path: .
           fail-on: error
+          openapi: openapi.yaml
 ```
 
-SARIF output can be uploaded to GitHub code scanning so findings appear inline on pull requests. A complete workflow lives at [`.github/workflows/erroratlas.yml`](.github/workflows/erroratlas.yml).
+`openapi`, `baseline`, `changed-files`, and `affected-import-hops` are optional Action inputs. Paths are resolved from `path`. SARIF output can be uploaded to GitHub code scanning so findings appear inline on pull requests. A complete workflow lives at [`.github/workflows/erroratlas.yml`](.github/workflows/erroratlas.yml).
 
 ## Rules
 

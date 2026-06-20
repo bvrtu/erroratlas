@@ -1,0 +1,45 @@
+openapi: 3.1.0
+info:
+  title: ErrorAtlas demo API
+  version: 1.0.0
+paths:
+  /payments/card:
+    post:
+      responses:
+        "400":
+          description: Card token is required
+          content:
+            application/json:
+              example:
+                code: CARD_REQUIRED
+                message: A card token is required
+  /payments/charge:
+    post:
+      responses:
+        "402":
+          description: Payment was declined
+          content:
+            application/json:
+              example:
+                code: PAYMENT_DECLINED
+                message: The payment was declined
+  /users/validate:
+    post:
+      responses:
+        "400":
+          description: User id is required
+          content:
+            application/json:
+              example:
+                code: USER_ID_REQUIRED
+                message: A user id is required
+  /users/{id}:
+    get:
+      responses:
+        "404":
+          description: User was not found
+          content:
+            application/json:
+              example:
+                code: USER_NOT_FOUND
+                message: The requested user was not found
