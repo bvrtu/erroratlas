@@ -28,10 +28,12 @@ ErrorAtlas makes the error contract executable:
 ErrorAtlas requires Node.js 20 or newer.
 
 ```bash
-npm install --save-dev erroratlas
+npm install --save-dev github:bvrtu/erroratlas#v0.1.0
 npx erroratlas init
 npx erroratlas generate
 ```
+
+An npm registry release is planned; the GitHub install above is available today.
 
 Add descriptions and resolutions to `erroratlas.catalog.json`, then regenerate the Markdown reference:
 
