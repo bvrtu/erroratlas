@@ -1,7 +1,6 @@
 # ErrorAtlas
 
 [![CI](https://github.com/bvrtu/erroratlas/actions/workflows/ci.yml/badge.svg)](https://github.com/bvrtu/erroratlas/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/bvrtu/erroratlas)](https://github.com/bvrtu/erroratlas/releases/latest)
 [![npm](https://img.shields.io/npm/v/erroratlas)](https://www.npmjs.com/package/erroratlas)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
