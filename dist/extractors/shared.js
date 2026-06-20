@@ -79,6 +79,7 @@ export function detectedFromArguments(input) {
         constructor: spec.name,
         language: input.language,
         structured: code !== null,
+        allowMessageVariants: spec.allowMessageVariants === true,
         location: toLocation(input.root, input.filename, input.node),
     };
 }

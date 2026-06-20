@@ -1,0 +1,285 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-06-20T12:28:15.144Z",
+  "owner": "bvrtu",
+  "tool": {
+    "name": "erroratlas",
+    "version": "0.2.0"
+  },
+  "summary": {
+    "repositories": 10,
+    "scannedRepositories": 10,
+    "failedRepositories": 0,
+    "filesScanned": 187,
+    "structuredErrors": 8,
+    "unstructuredErrors": 46
+  },
+  "repositories": [
+    {
+      "repository": "bvrtu/erroratlas",
+      "url": "https://github.com/bvrtu/erroratlas",
+      "visibility": "PUBLIC",
+      "primaryLanguage": "TypeScript",
+      "defaultBranch": "main",
+      "commit": "710b15b7f9fc99905680f008c96cbda776d7be37",
+      "updatedAt": "2026-06-20T12:10:36Z",
+      "diskUsageKb": 0,
+      "isFork": false,
+      "isArchived": false,
+      "status": "scanned",
+      "filesScanned": 13,
+      "structuredErrors": 4,
+      "unstructuredErrors": 8,
+      "structuredRate": 0.3333,
+      "languages": {
+        "python": 2,
+        "typescript": 10
+      },
+      "constructors": {
+        "AppError": 4,
+        "Error": 8
+      },
+      "statusCodes": {
+        "400": 2,
+        "402": 1,
+        "404": 1
+      },
+      "diagnostics": {
+        "unstructured-error": 8
+      }
+    },
+    {
+      "repository": "bvrtu/iue-course-rag",
+      "url": "https://github.com/bvrtu/iue-course-rag",
+      "visibility": "PUBLIC",
+      "primaryLanguage": "Python",
+      "defaultBranch": "main",
+      "commit": "6ea5dd407d904ce037c2f93f67ed3c2d42a175e2",
+      "updatedAt": "2026-06-20T11:36:56Z",
+      "diskUsageKb": 40048,
+      "isFork": false,
+      "isArchived": false,
+      "status": "scanned",
+      "filesScanned": 20,
+      "structuredErrors": 0,
+      "unstructuredErrors": 5,
+      "structuredRate": 0,
+      "languages": {
+        "python": 5
+      },
+      "constructors": {
+        "ImportError": 2,
+        "RuntimeError": 2,
+        "ValueError": 1
+      },
+      "statusCodes": {},
+      "diagnostics": {
+        "unstructured-error": 5
+      }
+    },
+    {
+      "repository": "bvrtu/se420",
+      "url": "https://github.com/bvrtu/se420",
+      "visibility": "PUBLIC",
+      "primaryLanguage": "Python",
+      "defaultBranch": "main",
+      "commit": "0d4d7b0257590c07b0aa57936b0c4953a14d7d87",
+      "updatedAt": "2025-12-26T09:21:04Z",
+      "diskUsageKb": 24839,
+      "isFork": false,
+      "isArchived": false,
+      "status": "scanned",
+      "filesScanned": 19,
+      "structuredErrors": 0,
+      "unstructuredErrors": 5,
+      "structuredRate": 0,
+      "languages": {
+        "python": 5
+      },
+      "constructors": {
+        "ImportError": 2,
+        "RuntimeError": 2,
+        "ValueError": 1
+      },
+      "statusCodes": {},
+      "diagnostics": {
+        "unstructured-error": 5
+      }
+    },
+    {
+      "repository": "bvrtu/QuakeConnect",
+      "url": "https://github.com/bvrtu/QuakeConnect",
+      "visibility": "PUBLIC",
+      "primaryLanguage": "Dart",
+      "defaultBranch": "main",
+      "commit": "cac72e6601c376f452a4c3508326413d6c48f070",
+      "updatedAt": "2025-12-20T09:50:52Z",
+      "diskUsageKb": 5893,
+      "isFork": false,
+      "isArchived": false,
+      "status": "scanned",
+      "filesScanned": 49,
+      "structuredErrors": 4,
+      "unstructuredErrors": 21,
+      "structuredRate": 0.16,
+      "languages": {
+        "dart": 21,
+        "typescript": 4
+      },
+      "constructors": {
+        "Exception": 16,
+        "functions.https.HttpsError": 4,
+        "UnsupportedError": 5
+      },
+      "statusCodes": {},
+      "diagnostics": {
+        "unstructured-error": 21
+      }
+    },
+    {
+      "repository": "bvrtu/ecommerce-churn-prediction",
+      "url": "https://github.com/bvrtu/ecommerce-churn-prediction",
+      "visibility": "PUBLIC",
+      "primaryLanguage": "Python",
+      "defaultBranch": "main",
+      "commit": "b01c8242c5f9b326f1730e4192727a645af5c2bb",
+      "updatedAt": "2025-12-06T08:49:04Z",
+      "diskUsageKb": 155,
+      "isFork": false,
+      "isArchived": false,
+      "status": "scanned",
+      "filesScanned": 9,
+      "structuredErrors": 0,
+      "unstructuredErrors": 7,
+      "structuredRate": 0,
+      "languages": {
+        "python": 7
+      },
+      "constructors": {
+        "FileNotFoundError": 2,
+        "HTTPException": 4,
+        "ValueError": 1
+      },
+      "statusCodes": {},
+      "diagnostics": {
+        "unstructured-error": 7
+      }
+    },
+    {
+      "repository": "bvrtu/AkbankGenAI-TurkiyeGPT",
+      "url": "https://github.com/bvrtu/AkbankGenAI-TurkiyeGPT",
+      "visibility": "PUBLIC",
+      "primaryLanguage": "HTML",
+      "defaultBranch": "main",
+      "commit": "98052d2c0a2e78bf76ea96e4433e53cb5cac08a4",
+      "updatedAt": "2025-10-22T16:38:45Z",
+      "diskUsageKb": 1328,
+      "isFork": false,
+      "isArchived": false,
+      "status": "scanned",
+      "filesScanned": 4,
+      "structuredErrors": 0,
+      "unstructuredErrors": 0,
+      "structuredRate": null,
+      "languages": {},
+      "constructors": {},
+      "statusCodes": {},
+      "diagnostics": {}
+    },
+    {
+      "repository": "bvrtu/AIPHOTO",
+      "url": "https://github.com/bvrtu/AIPHOTO",
+      "visibility": "PUBLIC",
+      "primaryLanguage": "Swift",
+      "defaultBranch": "main",
+      "commit": "d1279657219e693f801ae5537c9b6e04e8268909",
+      "updatedAt": "2025-10-03T13:56:09Z",
+      "diskUsageKb": 1870,
+      "isFork": false,
+      "isArchived": false,
+      "status": "scanned",
+      "filesScanned": 60,
+      "structuredErrors": 0,
+      "unstructuredErrors": 0,
+      "structuredRate": null,
+      "languages": {},
+      "constructors": {},
+      "statusCodes": {},
+      "diagnostics": {}
+    },
+    {
+      "repository": "bvrtu/ScoutDraft",
+      "url": "https://github.com/bvrtu/ScoutDraft",
+      "visibility": "PUBLIC",
+      "primaryLanguage": "Java",
+      "defaultBranch": "main",
+      "commit": "2247789159357f63ef02bd2b70db466d706ab12e",
+      "updatedAt": "2025-08-21T13:15:26Z",
+      "diskUsageKb": 24798,
+      "isFork": false,
+      "isArchived": false,
+      "status": "scanned",
+      "filesScanned": 8,
+      "structuredErrors": 0,
+      "unstructuredErrors": 0,
+      "structuredRate": null,
+      "languages": {},
+      "constructors": {},
+      "statusCodes": {},
+      "diagnostics": {}
+    },
+    {
+      "repository": "bvrtu/WebScrapingBooking",
+      "url": "https://github.com/bvrtu/WebScrapingBooking",
+      "visibility": "PUBLIC",
+      "primaryLanguage": "Python",
+      "defaultBranch": "main",
+      "commit": "4418ce22d91bd8b415e43bc05f78beba8825776c",
+      "updatedAt": "2025-06-11T14:25:04Z",
+      "diskUsageKb": 92,
+      "isFork": false,
+      "isArchived": false,
+      "status": "scanned",
+      "filesScanned": 1,
+      "structuredErrors": 0,
+      "unstructuredErrors": 0,
+      "structuredRate": null,
+      "languages": {},
+      "constructors": {},
+      "statusCodes": {},
+      "diagnostics": {}
+    },
+    {
+      "repository": "bvrtu/PistiProject",
+      "url": "https://github.com/bvrtu/PistiProject",
+      "visibility": "PUBLIC",
+      "primaryLanguage": "Java",
+      "defaultBranch": "main",
+      "commit": "613f40649925c50d035636c54ae475a40cc05c29",
+      "updatedAt": "2025-05-05T13:15:36Z",
+      "diskUsageKb": 37,
+      "isFork": false,
+      "isArchived": false,
+      "status": "scanned",
+      "filesScanned": 4,
+      "structuredErrors": 0,
+      "unstructuredErrors": 0,
+      "structuredRate": null,
+      "languages": {},
+      "constructors": {},
+      "statusCodes": {},
+      "diagnostics": {}
+    }
+  ],
+  "license": "CC-BY-4.0",
+  "privacy": {
+    "scope": "public repositories only",
+    "excluded": [
+      "source code",
+      "error messages",
+      "error codes",
+      "file paths",
+      "private repository metadata"
+    ]
+  }
+}

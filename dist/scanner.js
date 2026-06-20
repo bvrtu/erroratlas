@@ -2,6 +2,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import fg from "fast-glob";
 import { extractPythonErrors } from "./extractors/python.js";
+import { extractDartErrors } from "./extractors/dart.js";
+import { extractJavaErrors } from "./extractors/java.js";
+import { extractSwiftErrors } from "./extractors/swift.js";
 import { extractTypeScriptErrors } from "./extractors/typescript.js";
 export async function scanProject(root, config) {
     const absoluteRoot = path.resolve(root);
@@ -22,6 +25,30 @@ export async function scanProject(root, config) {
                 filename,
                 source,
                 constructors: config.constructors.python,
+            });
+        }
+        if (filename.endsWith(".java")) {
+            return extractJavaErrors({
+                root: absoluteRoot,
+                filename,
+                source,
+                constructors: config.constructors.java,
+            });
+        }
+        if (filename.endsWith(".dart")) {
+            return extractDartErrors({
+                root: absoluteRoot,
+                filename,
+                source,
+                constructors: config.constructors.dart,
+            });
+        }
+        if (filename.endsWith(".swift")) {
+            return extractSwiftErrors({
+                root: absoluteRoot,
+                filename,
+                source,
+                constructors: config.constructors.swift,
             });
         }
         return extractTypeScriptErrors({
@@ -60,7 +87,9 @@ export function analyzeDetections(errors) {
     for (const [code, definitions] of byCode) {
         const messages = new Set(definitions.map((item) => item.message).filter(Boolean));
         const statuses = new Set(definitions.map((item) => item.status).filter((item) => item !== null));
-        if (messages.size <= 1 && statuses.size <= 1)
+        const variantsAllowed = definitions.every((item) => item.allowMessageVariants);
+        const hasMessageConflict = messages.size > 1 && !variantsAllowed;
+        if (!hasMessageConflict && statuses.size <= 1)
             continue;
         diagnostics.push({
             ruleId: "duplicate-definition",

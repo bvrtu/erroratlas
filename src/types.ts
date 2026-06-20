@@ -1,4 +1,9 @@
-export type SupportedLanguage = "typescript" | "python";
+export type SupportedLanguage =
+  | "typescript"
+  | "python"
+  | "java"
+  | "dart"
+  | "swift";
 
 export type Severity = "error" | "warning" | "note";
 
@@ -16,6 +21,7 @@ export interface ConstructorSpec {
   messageArgument?: number;
   statusArgument?: number;
   defaultStatus?: number;
+  allowMessageVariants?: boolean;
 }
 
 export interface ErrorAtlasConfig {
@@ -34,6 +40,7 @@ export interface DetectedError {
   constructor: string;
   language: SupportedLanguage;
   structured: boolean;
+  allowMessageVariants: boolean;
   location: SourceLocation;
 }
 
@@ -45,6 +52,7 @@ export interface CatalogOccurrence extends SourceLocation {
 export interface CatalogEntry {
   code: string;
   message: string | null;
+  observedMessages?: string[];
   status: number | null;
   description: string;
   resolution: string;

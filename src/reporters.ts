@@ -48,6 +48,12 @@ export function renderMarkdown(catalog: ErrorCatalog): string {
     lines.push(
       `- **Message:** ${error.message ? `\`${escapeMarkdown(error.message)}\`` : "—"}`,
     );
+    if ((error.observedMessages?.length ?? 0) > 1) {
+      lines.push("- **Observed messages:**");
+      for (const message of error.observedMessages ?? []) {
+        lines.push(`  - \`${escapeMarkdown(message)}\``);
+      }
+    }
     lines.push(
       `- **Description:** ${error.description || "_Not documented yet._"}`,
     );

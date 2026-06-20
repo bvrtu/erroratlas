@@ -29,6 +29,12 @@ export function renderMarkdown(catalog) {
         lines.push(`## \`${escapeMarkdown(error.code)}\``, "");
         lines.push(`- **HTTP status:** ${error.status ?? "—"}`);
         lines.push(`- **Message:** ${error.message ? `\`${escapeMarkdown(error.message)}\`` : "—"}`);
+        if ((error.observedMessages?.length ?? 0) > 1) {
+            lines.push("- **Observed messages:**");
+            for (const message of error.observedMessages ?? []) {
+                lines.push(`  - \`${escapeMarkdown(message)}\``);
+            }
+        }
         lines.push(`- **Description:** ${error.description || "_Not documented yet._"}`);
         lines.push(`- **Resolution:** ${error.resolution || "_Not documented yet._"}`, "");
         if (error.occurrences.length) {

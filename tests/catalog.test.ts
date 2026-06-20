@@ -10,6 +10,7 @@ const baseError: DetectedError = {
   constructor: "AppError",
   language: "typescript",
   structured: true,
+  allowMessageVariants: false,
   location: {
     file: "src/users.ts",
     line: 4,
@@ -120,5 +121,31 @@ describe("catalog drift", () => {
         severity: "error",
       }),
     ]);
+  });
+
+  it("allows framework-declared message variants and records each message", () => {
+    const definitions: DetectedError[] = [
+      {
+        ...baseError,
+        code: "internal",
+        message: "Notification delivery failed",
+        constructor: "functions.https.HttpsError",
+        allowMessageVariants: true,
+      },
+      {
+        ...baseError,
+        code: "internal",
+        message: "News loading failed",
+        constructor: "functions.https.HttpsError",
+        allowMessageVariants: true,
+      },
+    ];
+
+    expect(analyzeDetections(definitions)).toEqual([]);
+    expect(buildCatalog(definitions).errors[0]).toMatchObject({
+      code: "internal",
+      message: null,
+      observedMessages: ["News loading failed", "Notification delivery failed"],
+    });
   });
 });

@@ -29,13 +29,16 @@ export function extractTypeScriptErrors(input) {
         }
     }
     const thrown = tree.findAll({
-        rule: { pattern: "throw new $CTOR($MESSAGE)" },
+        rule: { pattern: "throw new $CTOR($$$ARGS)" },
     });
     for (const node of thrown) {
         const constructor = node.getMatch("CTOR")?.text() ?? "Error";
         if (configured.has(constructor))
             continue;
-        const message = literalString(node.getMatch("MESSAGE")?.text() ?? "");
+        const args = node
+            .getMultipleMatches("ARGS")
+            .filter((item) => item.isNamed());
+        const message = literalString(args[0]?.text() ?? "");
         errors.push({
             code: null,
             message,
@@ -43,6 +46,7 @@ export function extractTypeScriptErrors(input) {
             constructor,
             language: "typescript",
             structured: false,
+            allowMessageVariants: false,
             location: toLocation(input.root, input.filename, node),
         });
     }

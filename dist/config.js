@@ -31,6 +31,18 @@ const DEFAULT_CONSTRUCTORS = {
         { name: "TooManyRequestsException", defaultStatus: 429 },
         { name: "InternalServerErrorException", defaultStatus: 500 },
         { name: "ServiceUnavailableException", defaultStatus: 503 },
+        {
+            name: "functions.https.HttpsError",
+            codeArgument: 0,
+            messageArgument: 1,
+            allowMessageVariants: true,
+        },
+        {
+            name: "HttpsError",
+            codeArgument: 0,
+            messageArgument: 1,
+            allowMessageVariants: true,
+        },
     ],
     python: [
         {
@@ -48,9 +60,21 @@ const DEFAULT_CONSTRUCTORS = {
         { name: "DomainError", codeArgument: 0, messageArgument: 1 },
         { name: "HTTPException", statusArgument: 0, messageArgument: 1 },
     ],
+    java: [
+        { name: "AppException", codeArgument: 0, messageArgument: 1 },
+        { name: "ApiException", codeArgument: 0, messageArgument: 1 },
+        { name: "DomainException", codeArgument: 0, messageArgument: 1 },
+        { name: "ResponseStatusException", messageArgument: 1 },
+    ],
+    dart: [
+        { name: "AppException", codeArgument: 0, messageArgument: 1 },
+        { name: "ApiException", codeArgument: 0, messageArgument: 1 },
+        { name: "FirebaseFunctionsException" },
+    ],
+    swift: [],
 };
 const DEFAULTS = {
-    include: ["**/*.{ts,tsx,js,jsx,py}"],
+    include: ["**/*.{ts,tsx,js,jsx,py,java,dart,swift}"],
     exclude: [
         "**/node_modules/**",
         "**/dist/**",
@@ -59,9 +83,12 @@ const DEFAULTS = {
         "**/.venv/**",
         "**/venv/**",
         "**/__pycache__/**",
+        "**/{test,tests}/**",
         "**/*.{test,spec}.{ts,tsx,js,jsx}",
         "**/test_*.py",
         "**/*_test.py",
+        "**/*Test.java",
+        "**/*Tests.swift",
     ],
     catalog: "erroratlas.catalog.json",
     docs: "docs/errors.md",
@@ -78,6 +105,9 @@ export function defaultRawConfig() {
         constructors: {
             typescript: [],
             python: [],
+            java: [],
+            dart: [],
+            swift: [],
         },
     };
 }
@@ -94,16 +124,24 @@ export async function loadConfig(root) {
     }
     validateRawConfig(raw);
     const useDefaults = raw.useDefaultConstructors !== false;
+    const languages = [
+        "typescript",
+        "python",
+        "java",
+        "dart",
+        "swift",
+    ];
+    const constructors = Object.fromEntries(languages.map((language) => [
+        language,
+        mergeConstructors(useDefaults ? DEFAULT_CONSTRUCTORS[language] : [], raw.constructors?.[language] ?? []),
+    ]));
     return {
         include: raw.include ?? DEFAULTS.include,
         exclude: raw.exclude ?? DEFAULTS.exclude,
         catalog: raw.catalog ?? DEFAULTS.catalog,
         docs: raw.docs ?? DEFAULTS.docs,
         failOn: raw.failOn ?? DEFAULTS.failOn,
-        constructors: {
-            typescript: mergeConstructors(useDefaults ? DEFAULT_CONSTRUCTORS.typescript : [], raw.constructors?.typescript ?? []),
-            python: mergeConstructors(useDefaults ? DEFAULT_CONSTRUCTORS.python : [], raw.constructors?.python ?? []),
-        },
+        constructors,
     };
 }
 function mergeConstructors(defaults, custom) {
@@ -116,7 +154,13 @@ function validateRawConfig(config) {
     if (config.failOn && !["error", "warning"].includes(config.failOn)) {
         throw new Error('"failOn" must be either "error" or "warning".');
     }
-    for (const language of ["typescript", "python"]) {
+    for (const language of [
+        "typescript",
+        "python",
+        "java",
+        "dart",
+        "swift",
+    ]) {
         for (const constructor of config.constructors?.[language] ?? []) {
             if (!/^[$A-Z_a-z][$\w]*(?:\.[$A-Z_a-z][$\w]*)*$/.test(constructor.name)) {
                 throw new Error(`Invalid ${language} constructor name: ${constructor.name}`);

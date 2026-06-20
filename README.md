@@ -2,11 +2,12 @@
 
 [![CI](https://github.com/bvrtu/erroratlas/actions/workflows/ci.yml/badge.svg)](https://github.com/bvrtu/erroratlas/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/bvrtu/erroratlas)](https://github.com/bvrtu/erroratlas/releases/latest)
+[![npm](https://img.shields.io/npm/v/erroratlas)](https://www.npmjs.com/package/erroratlas)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Keep the errors your application throws and the errors your documentation promises in sync.**
 
-ErrorAtlas is an AST-powered CLI and GitHub Action that discovers application errors in TypeScript and Python, generates a human-editable error catalog, and fails CI when code and documentation drift apart.
+ErrorAtlas is an AST-powered CLI and GitHub Action that discovers application errors in TypeScript, JavaScript, Python, Java, Dart, and Swift; generates a human-editable error catalog; and fails CI when code and documentation drift apart.
 
 ```text
 ✖ src/users.ts:42:11 [undocumented-error] USER_SUSPENDED exists in source but is missing from the catalog.
@@ -32,12 +33,10 @@ ErrorAtlas makes the error contract executable:
 ErrorAtlas requires Node.js 20 or newer.
 
 ```bash
-npm install --save-dev github:bvrtu/erroratlas#v0.1.0
+npm install --save-dev erroratlas
 npx erroratlas init
 npx erroratlas generate
 ```
-
-An npm registry release is planned; the GitHub install above is available today.
 
 Add descriptions and resolutions to `erroratlas.catalog.json`, then regenerate the Markdown reference:
 
@@ -70,6 +69,18 @@ raise HTTPException(
     status_code=404,
     detail={"code": "USER_NOT_FOUND", "message": "User was not found"},
 )
+```
+
+```java
+throw new ApiException("USER_NOT_FOUND", "The requested user was not found");
+```
+
+```dart
+throw AppException('USER_NOT_FOUND', 'The requested user was not found');
+```
+
+```swift
+throw APIError.notFound("The requested user was not found")
 ```
 
 It also reports errors without a static machine-readable code:
@@ -122,7 +133,7 @@ erroratlas check --format sarif --output erroratlas.sarif
 
 ```json
 {
-  "include": ["src/**/*.{ts,tsx,js,jsx,py}"],
+  "include": ["src/**/*.{ts,tsx,js,jsx,py,java,dart,swift}"],
   "exclude": ["**/*.test.ts", "**/test_*.py"],
   "catalog": "erroratlas.catalog.json",
   "docs": "docs/errors.md",
@@ -144,14 +155,17 @@ erroratlas check --format sarif --output erroratlas.sarif
         "messageArgument": 1,
         "statusArgument": 2
       }
-    ]
+    ],
+    "java": [],
+    "dart": [],
+    "swift": []
   }
 }
 ```
 
 Custom constructors override a default constructor with the same name. Dotted names such as `errors.ServiceError` are supported.
 
-Built-in TypeScript profiles include `AppError`, `ApiError`, `DomainError`, `HttpError`, and common NestJS HTTP exceptions. Built-in Python profiles include `AppError`, `ApiError`, `DomainError`, and FastAPI/Starlette `HTTPException`.
+Built-in profiles cover common application errors, NestJS HTTP exceptions, Firebase `HttpsError`, FastAPI/Starlette `HTTPException`, Spring `ResponseStatusException`, and Dart `FirebaseFunctionsException`. Unknown exception constructors are still reported as unstructured errors.
 
 ## GitHub Actions
 
@@ -167,7 +181,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: bvrtu/erroratlas@v0.1.0
+      - uses: bvrtu/erroratlas@v0.2.0
         with:
           path: .
           fail-on: error
@@ -189,15 +203,17 @@ SARIF output can be uploaded to GitHub code scanning so findings appear inline o
 
 ## Current scope
 
-The first release focuses on errors constructed directly inside `throw` and `raise` statements. It does not yet perform data-flow analysis, resolve imported constants, or inspect errors created through arbitrary factory functions. Those boundaries keep findings deterministic and false positives low.
+The current release focuses on errors constructed directly inside `throw` and `raise` statements. It does not yet perform data-flow analysis, resolve imported constants, or inspect errors created through arbitrary factory functions. Those boundaries keep findings deterministic and false positives low.
+
+The repository also contains a privacy-safe [public repository audit dataset](data/README.md) generated from real projects. Raw messages, codes, file paths, and private repository metadata are excluded.
 
 ## Roadmap
 
 - Error factory-function profiles and constant resolution
-- Go, Java, and C# language packs
+- Go, C#, and Kotlin language packs
 - OpenAPI error-response comparison
 - Pull-request annotations without separate SARIF setup
-- An opt-in, source-free Error Contract Benchmark dataset and public API
+- A read-only API for the Error Contract Benchmark dataset
 
 See [the architecture](docs/architecture.md) for design decisions and the planned benchmark data model.
 

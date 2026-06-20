@@ -1,10 +1,13 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-06-20T12:00:56.790Z",
+  "generatedAt": "2026-06-20T12:27:46.290Z",
   "errors": [
     {
       "code": "CARD_REQUIRED",
       "message": "A card token is required",
+      "observedMessages": [
+        "A card token is required"
+      ],
       "status": 400,
       "description": "The request did not include a card token.",
       "resolution": "Send a non-empty card token and retry the request.",
@@ -23,6 +26,9 @@
     {
       "code": "PAYMENT_DECLINED",
       "message": "The payment was declined",
+      "observedMessages": [
+        "The payment was declined"
+      ],
       "status": 402,
       "description": "The payment provider declined the attempted charge.",
       "resolution": "Ask the customer to use another payment method or contact their bank.",
@@ -41,6 +47,9 @@
     {
       "code": "USER_ID_REQUIRED",
       "message": "A user id is required",
+      "observedMessages": [
+        "A user id is required"
+      ],
       "status": 400,
       "description": "The request did not include a user identifier.",
       "resolution": "Provide a valid user id in the request.",
@@ -59,6 +68,9 @@
     {
       "code": "USER_NOT_FOUND",
       "message": "The requested user was not found",
+      "observedMessages": [
+        "The requested user was not found"
+      ],
       "status": 404,
       "description": "No user exists for the supplied identifier.",
       "resolution": "Verify the user id or create the user before retrying.",

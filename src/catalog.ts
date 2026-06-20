@@ -29,9 +29,24 @@ export function buildCatalog(
     .map(([code, definitions]) => {
       const first = definitions[0];
       const existing = previousByCode.get(code);
+      const observedMessages = [
+        ...new Set(
+          definitions
+            .map((definition) => definition.message)
+            .filter((message): message is string => message !== null),
+        ),
+      ].sort();
+      const variantsAllowed = definitions.every(
+        (definition) => definition.allowMessageVariants,
+      );
+      const message =
+        variantsAllowed && observedMessages.length > 1
+          ? null
+          : (first?.message ?? null);
       return {
         code,
-        message: first?.message ?? null,
+        message,
+        observedMessages,
         status: first?.status ?? null,
         description: existing?.description ?? "",
         resolution: existing?.resolution ?? "",
@@ -94,7 +109,12 @@ export function compareWithCatalog(
       });
       continue;
     }
-    if (source.message !== documented.message) {
+    const sourceMessages = normalizedMessages(source);
+    const documentedMessages = normalizedMessages(documented);
+    if (
+      source.message !== documented.message ||
+      !sameStrings(sourceMessages, documentedMessages)
+    ) {
       diagnostics.push({
         ruleId: "message-drift",
         severity: "error",
@@ -154,4 +174,19 @@ function validateCatalog(value: ErrorCatalog, filename: string): void {
 
 function quote(value: string | null): string {
   return value === null ? "none" : JSON.stringify(value);
+}
+
+function normalizedMessages(entry: CatalogEntry): string[] {
+  return [
+    ...new Set(
+      entry.observedMessages ?? (entry.message ? [entry.message] : []),
+    ),
+  ].sort();
+}
+
+function sameStrings(left: string[], right: string[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
 }

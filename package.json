@@ -1,7 +1,7 @@
 {
   "name": "erroratlas",
-  "version": "0.1.0",
-  "description": "Keep application error contracts and documentation in sync.",
+  "version": "0.2.0",
+  "description": "AST-powered error catalog and documentation drift checker for TypeScript, Python, Java, Dart, and Swift.",
   "author": "bvrtu",
   "type": "module",
   "bin": {
@@ -21,6 +21,8 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "audit:github": "npm run build && node scripts/audit-github-repos.mjs",
+    "dataset:publish": "node scripts/publish-audit-dataset.mjs",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -37,7 +39,11 @@
     "static-analysis",
     "cli",
     "github-action",
-    "developer-tools"
+    "developer-tools",
+    "java",
+    "dart",
+    "swift",
+    "sarif"
   ],
   "license": "MIT",
   "homepage": "https://github.com/bvrtu/erroratlas#readme",
@@ -52,7 +58,10 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@ast-grep/lang-dart": "^0.0.7",
+    "@ast-grep/lang-java": "^0.0.7",
     "@ast-grep/lang-python": "^0.0.6",
+    "@ast-grep/lang-swift": "^0.0.8",
     "@ast-grep/napi": "^0.43.0",
     "commander": "^14.0.2",
     "fast-glob": "^3.3.3"

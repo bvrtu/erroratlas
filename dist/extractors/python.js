@@ -1,15 +1,8 @@
-import python from "@ast-grep/lang-python";
-import { parse, registerDynamicLanguage } from "@ast-grep/napi";
+import { parse } from "@ast-grep/napi";
+import { ensureDynamicLanguages } from "./languages.js";
 import { detectedFromArguments, literalString, propertyNumber, propertyString, toLocation, } from "./shared.js";
-let registered = false;
-function ensurePythonRegistered() {
-    if (registered)
-        return;
-    registerDynamicLanguage({ python });
-    registered = true;
-}
 export function extractPythonErrors(input) {
-    ensurePythonRegistered();
+    ensureDynamicLanguages();
     const tree = parse("python", input.source).root();
     const errors = [];
     const configured = new Set(input.constructors.map((item) => item.name));
@@ -51,18 +44,22 @@ export function extractPythonErrors(input) {
             errors.push(detected);
         }
     }
-    const raised = tree.findAll({ rule: { pattern: "raise $CTOR($MESSAGE)" } });
+    const raised = tree.findAll({ rule: { pattern: "raise $CTOR($$$ARGS)" } });
     for (const node of raised) {
         const constructor = node.getMatch("CTOR")?.text() ?? "Exception";
         if (configured.has(constructor))
             continue;
+        const args = node
+            .getMultipleMatches("ARGS")
+            .filter((item) => item.isNamed());
         errors.push({
             code: null,
-            message: literalString(node.getMatch("MESSAGE")?.text() ?? ""),
+            message: literalString(args[0]?.text() ?? ""),
             status: null,
             constructor,
             language: "python",
             structured: false,
+            allowMessageVariants: false,
             location: toLocation(input.root, input.filename, node),
         });
     }

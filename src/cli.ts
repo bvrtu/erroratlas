@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { Command, Option } from "commander";
 import {
@@ -20,11 +21,13 @@ import {
 import type { Diagnostic, ErrorCatalog, ScanResult } from "./types.js";
 
 const program = new Command();
+const require = createRequire(import.meta.url);
+const packageJson = require("../package.json") as { version: string };
 
 program
   .name("erroratlas")
   .description("Keep application error contracts and documentation in sync.")
-  .version("0.1.0");
+  .version(packageJson.version);
 
 program
   .command("init")

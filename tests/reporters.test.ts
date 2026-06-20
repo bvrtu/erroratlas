@@ -15,6 +15,7 @@ const error: DetectedError = {
   constructor: "AppError",
   language: "typescript",
   structured: true,
+  allowMessageVariants: false,
   location: {
     file: "src/users.ts",
     line: 8,
