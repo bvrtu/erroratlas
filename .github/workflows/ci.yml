@@ -9,6 +9,18 @@ permissions:
   contents: read
 
 jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run test:coverage
+
   test:
     strategy:
       matrix:
@@ -26,7 +38,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run test:cli
-      - run: node dist/cli.js check examples/demo
+      - run: npm run test:demo
 
   package:
     runs-on: ubuntu-latest
@@ -48,3 +60,4 @@ jobs:
       - uses: ./
         with:
           path: examples/demo
+          openapi: openapi.yaml

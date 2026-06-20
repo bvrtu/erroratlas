@@ -42,6 +42,15 @@ npx erroratlas check --openapi openapi.yaml
 
 For RFC 9457 APIs, describe error responses under `application/problem+json` and expose a static `code` extension with `const`, enum, or examples. See [RFC 9457 mapping](rfc9457.md).
 
+The composite Action exposes the same contract path relative to its project `path`:
+
+```yaml
+- uses: bvrtu/erroratlas@v0.4.1
+  with:
+    path: .
+    openapi: openapi.yaml
+```
+
 ## Runtime correlation and adapters
 
 Runtime is optional. Create a monitor and use a thin adapter:

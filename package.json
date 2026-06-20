@@ -1,6 +1,6 @@
 {
   "name": "erroratlas",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Source-first error contract governance with catalog, RFC 9457/OpenAPI drift, baselines, and runtime correlation.",
   "author": "bvrtu",
   "type": "module",
@@ -30,9 +30,10 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:cli": "node scripts/cli-smoke.mjs",
+    "test:demo": "node scripts/demo-smoke.mjs",
     "test:package": "node scripts/package-smoke.mjs",
     "test:watch": "vitest",
-    "verify": "npm run format:check && npm run check && npm run test:coverage && npm run build && npm run test:cli && npm run test:package",
+    "verify": "npm run format:check && npm run check && npm run test:coverage && npm run build && npm run test:cli && npm run test:demo && npm run test:package",
     "prepack": "npm run build && npm test && npm run test:cli && npm run test:package"
   },
   "keywords": [

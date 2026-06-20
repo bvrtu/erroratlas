@@ -2,6 +2,7 @@ node_modules/
 coverage/
 *.log
 *.sarif
+!examples/demo/output/openapi-drift.sarif
 .DS_Store
 .erroratlas/
 work/

@@ -1,0 +1,87 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "ErrorAtlas",
+          "informationUri": "https://github.com/bvrtu/erroratlas",
+          "rules": [
+            {
+              "id": "openapi-stale-error",
+              "shortDescription": {
+                "text": "Openapi stale error"
+              }
+            },
+            {
+              "id": "openapi-status-drift",
+              "shortDescription": {
+                "text": "Openapi status drift"
+              }
+            },
+            {
+              "id": "openapi-undocumented-error",
+              "shortDescription": {
+                "text": "Openapi undocumented error"
+              }
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "openapi-stale-error",
+          "level": "warning",
+          "message": {
+            "text": "OLD_ERROR is documented by OpenAPI (GET /legacy) but was not found in source."
+          }
+        },
+        {
+          "ruleId": "openapi-undocumented-error",
+          "level": "error",
+          "message": {
+            "text": "PAYMENT_DECLINED exists in source but is missing from OpenAPI error responses."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/payments.py"
+                },
+                "region": {
+                  "startLine": 8,
+                  "startColumn": 11,
+                  "endLine": 8,
+                  "endColumn": 72
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "openapi-status-drift",
+          "level": "error",
+          "message": {
+            "text": "USER_NOT_FOUND has status 404 in source but OpenAPI documents 410."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/users.ts"
+                },
+                "region": {
+                  "startLine": 17,
+                  "startColumn": 9,
+                  "endLine": 19,
+                  "endColumn": 5
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

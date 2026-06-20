@@ -17,6 +17,10 @@ inputs:
     description: Optional ErrorAtlas baseline file, relative to the project path.
     required: false
     default: ""
+  openapi:
+    description: Optional OpenAPI or Swagger document, relative to the project path.
+    required: false
+    default: ""
   changed-files:
     description: Optional newline-delimited changed-file list, relative to the project path.
     required: false
@@ -42,12 +46,16 @@ runs:
         ERRORATLAS_PATH: ${{ inputs.path }}
         ERRORATLAS_FAIL_ON: ${{ inputs.fail-on }}
         ERRORATLAS_BASELINE: ${{ inputs.baseline }}
+        ERRORATLAS_OPENAPI: ${{ inputs.openapi }}
         ERRORATLAS_CHANGED_FILES: ${{ inputs.changed-files }}
         ERRORATLAS_AFFECTED_IMPORT_HOPS: ${{ inputs.affected-import-hops }}
       run: |
         args=(check "${ERRORATLAS_PATH}" --fail-on "${ERRORATLAS_FAIL_ON}")
         if [[ -n "${ERRORATLAS_BASELINE}" ]]; then
           args+=(--baseline "${ERRORATLAS_BASELINE}")
+        fi
+        if [[ -n "${ERRORATLAS_OPENAPI}" ]]; then
+          args+=(--openapi "${ERRORATLAS_OPENAPI}")
         fi
         if [[ -n "${ERRORATLAS_CHANGED_FILES}" ]]; then
           args+=(--changed-files "${ERRORATLAS_CHANGED_FILES}")

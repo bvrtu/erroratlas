@@ -4,6 +4,17 @@ All notable changes to this project will be documented here. The format follows 
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-20
+
+### Added
+
+- GitHub Action `openapi` input and a reproducible end-to-end catalog/OpenAPI/SARIF demo.
+- CI enforcement for formatting and configured coverage thresholds.
+
+### Changed
+
+- Competitive positioning now documents complementary use with observability, OpenAPI diff, curated catalog, and framework Problem Details tools using primary references.
+
 ## [0.4.0] - 2026-06-20
 
 ### Added
