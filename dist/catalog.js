@@ -30,6 +30,7 @@ export function buildCatalog(errors, previous = null, generatedAt = new Date().t
             status: first?.status ?? null,
             description: existing?.description ?? "",
             resolution: existing?.resolution ?? "",
+            ...(first?.problem ? { problem: first.problem } : {}),
             occurrences: definitions.map((item) => ({
                 ...item.location,
                 language: item.language,
@@ -40,7 +41,7 @@ export function buildCatalog(errors, previous = null, generatedAt = new Date().t
     })
         .sort((left, right) => left.code.localeCompare(right.code));
     return {
-        schemaVersion: 1,
+        schemaVersion: 2,
         generatedAt,
         errors: entries,
     };
@@ -99,6 +100,16 @@ export function compareWithCatalog(scan, catalog) {
                 location,
             });
         }
+        if (catalog.schemaVersion >= 2 &&
+            canonicalProblem(source.problem) !== canonicalProblem(documented.problem)) {
+            diagnostics.push({
+                ruleId: "problem-details-drift",
+                severity: "error",
+                message: `${code} RFC 9457 problem details differ between source and catalog.`,
+                code,
+                location,
+            });
+        }
         if (!documented.resolution.trim()) {
             diagnostics.push({
                 ruleId: "missing-resolution",
@@ -123,7 +134,7 @@ export function compareWithCatalog(scan, catalog) {
     return diagnostics.sort(compareDiagnostics);
 }
 function validateCatalog(value, filename) {
-    if (value.schemaVersion !== 1 || !Array.isArray(value.errors)) {
+    if (![1, 2].includes(value.schemaVersion) || !Array.isArray(value.errors)) {
         throw new Error(`${filename} is not a valid ErrorAtlas catalog.`);
     }
     const codes = new Set();
@@ -133,6 +144,17 @@ function validateCatalog(value, filename) {
         }
         codes.add(entry.code);
     }
+}
+function canonicalProblem(value) {
+    if (!value)
+        return "";
+    return JSON.stringify({
+        type: value.type,
+        title: value.title,
+        detail: value.detail,
+        instance: value.instance,
+        extensions: Object.fromEntries(Object.entries(value.extensions).sort(([left], [right]) => left.localeCompare(right))),
+    });
 }
 function quote(value) {
     return value === null ? "none" : JSON.stringify(value);

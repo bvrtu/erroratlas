@@ -76,4 +76,134 @@ describe("project scanner", () => {
       }),
     ]);
   });
+
+  it("resolves two-hop re-exports, defaults, aliases, members, and factories", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-"));
+    temporaryDirectories.push(root);
+    await mkdir(path.join(root, "src"));
+    await writeFile(
+      path.join(root, "src", "contracts.ts"),
+      `
+        export const ProblemCodes = { NotFound: "USER_NOT_FOUND" } as const;
+        export enum HttpStatus { NotFound = 404 }
+        const DEFAULT_DETAIL = "User was not found";
+        export default DEFAULT_DETAIL;
+        export function makeProblem(code, detail, status) {
+          return new AppError(code, detail, status);
+        }
+      `,
+    );
+    await writeFile(
+      path.join(root, "src", "index.ts"),
+      `
+        export {
+          ProblemCodes as Codes,
+          HttpStatus,
+          default as DEFAULT_DETAIL,
+          makeProblem,
+        } from "./contracts";
+      `,
+    );
+    await writeFile(
+      path.join(root, "src", "service.ts"),
+      `
+        import * as Contracts from "./index";
+        import DEFAULT_DETAIL from "./contracts";
+        const CODE = Contracts.Codes.NotFound;
+        const createNotFound = (detail) =>
+          Contracts.makeProblem(CODE, detail, Contracts.HttpStatus.NotFound);
+        throw createNotFound(DEFAULT_DETAIL);
+      `,
+    );
+
+    const result = await scanProject(root, await loadConfig(root));
+
+    expect(result.errors).toEqual([
+      expect.objectContaining({
+        code: "USER_NOT_FOUND",
+        message: "User was not found",
+        status: 404,
+        constructor: "createNotFound()",
+        structured: true,
+      }),
+    ]);
+  });
+
+  it("does not guess through more than two cross-file hops", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-"));
+    temporaryDirectories.push(root);
+    await mkdir(path.join(root, "src"));
+    await writeFile(
+      path.join(root, "src", "leaf.ts"),
+      'export const CODE = "TOO_FAR";\n',
+    );
+    await writeFile(
+      path.join(root, "src", "level-two.ts"),
+      'export { CODE } from "./leaf";\n',
+    );
+    await writeFile(
+      path.join(root, "src", "level-one.ts"),
+      'export { CODE } from "./level-two";\n',
+    );
+    await writeFile(
+      path.join(root, "src", "service.ts"),
+      `
+        import { CODE } from "./level-one";
+        throw new AppError(CODE, "Unproven code", 500);
+      `,
+    );
+
+    const result = await scanProject(root, await loadConfig(root));
+
+    expect(result.errors).toEqual([
+      expect.objectContaining({ code: null, structured: false }),
+    ]);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ ruleId: "unstructured-error" }),
+    ]);
+  });
+
+  it("incrementally scans changed files and bounded reverse importers", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-"));
+    temporaryDirectories.push(root);
+    await mkdir(path.join(root, "src"));
+    await writeFile(
+      path.join(root, "src", "codes.ts"),
+      'export const CODE = "SERVICE_FAILURE";\n',
+    );
+    await writeFile(
+      path.join(root, "src", "service.ts"),
+      `
+        import { CODE } from "./codes";
+        export function run() {
+          throw new AppError(CODE, "Service failed", 503);
+        }
+      `,
+    );
+    await writeFile(
+      path.join(root, "src", "controller.ts"),
+      `
+        import { run } from "./service";
+        export function handle() {
+          run();
+          throw new AppError("CONTROLLER_FAILURE", "Controller failed", 500);
+        }
+      `,
+    );
+    await writeFile(
+      path.join(root, "src", "unrelated.ts"),
+      'throw new AppError("UNRELATED", "Unrelated", 500);\n',
+    );
+
+    const result = await scanProject(root, await loadConfig(root), {
+      changedFiles: ["src/codes.ts"],
+      affectedImportHops: 2,
+    });
+
+    expect(result.filesScanned).toBe(3);
+    expect(result.errors.map((error) => error.code)).toEqual([
+      "CONTROLLER_FAILURE",
+      "SERVICE_FAILURE",
+    ]);
+  });
 });

@@ -9,7 +9,10 @@ import { extractGoErrors } from "./extractors/go.js";
 import { extractKotlinErrors } from "./extractors/kotlin.js";
 import { extractSwiftErrors } from "./extractors/swift.js";
 import { extractTypeScriptErrors } from "./extractors/typescript.js";
-import { buildTypeScriptStaticValues } from "./extractors/typescript-symbols.js";
+import {
+  buildTypeScriptFactories,
+  buildTypeScriptStaticValues,
+} from "./extractors/typescript-symbols.js";
 import type {
   DetectedError,
   Diagnostic,
@@ -17,9 +20,15 @@ import type {
   ScanResult,
 } from "./types.js";
 
+export interface ScanOptions {
+  changedFiles?: string[];
+  affectedImportHops?: number;
+}
+
 export async function scanProject(
   root: string,
   config: ErrorAtlasConfig,
+  options: ScanOptions = {},
 ): Promise<ScanResult> {
   const absoluteRoot = path.resolve(root);
   const files = await fg(config.include, {
@@ -42,9 +51,25 @@ export async function scanProject(
     /\.[jt]sx?$/.test(filename),
   );
   const staticValues = buildTypeScriptStaticValues(typescriptSources);
+  const factories = buildTypeScriptFactories(
+    typescriptSources,
+    config.constructors.typescript,
+  );
+
+  const selectedFiles = options.changedFiles?.length
+    ? affectedFiles(
+        absoluteRoot,
+        sources,
+        options.changedFiles,
+        options.affectedImportHops ?? 2,
+      )
+    : new Set(sources.map(({ filename }) => path.resolve(filename)));
+  const selectedSources = sources.filter(({ filename }) =>
+    selectedFiles.has(path.resolve(filename)),
+  );
 
   const detected = await Promise.all(
-    sources.map(async ({ filename, source }) => {
+    selectedSources.map(async ({ filename, source }) => {
       if (filename.endsWith(".py")) {
         return extractPythonErrors({
           root: absoluteRoot,
@@ -102,12 +127,14 @@ export async function scanProject(
         });
       }
       const fileStaticValues = staticValues.get(path.resolve(filename));
+      const fileFactories = factories.get(path.resolve(filename));
       return extractTypeScriptErrors({
         root: absoluteRoot,
         filename,
         source,
         constructors: config.constructors.typescript,
         ...(fileStaticValues ? { staticValues: fileStaticValues } : {}),
+        ...(fileFactories ? { factories: fileFactories } : {}),
       });
     }),
   );
@@ -115,10 +142,78 @@ export async function scanProject(
   const errors = detected.flat().sort(compareDetectedErrors);
   return {
     root: absoluteRoot,
-    filesScanned: files.length,
+    filesScanned: selectedSources.length,
     errors,
     diagnostics: analyzeDetections(errors),
   };
+}
+
+function affectedFiles(
+  root: string,
+  sources: Array<{ filename: string; source: string }>,
+  changedFiles: string[],
+  maxHops: number,
+): Set<string> {
+  const known = new Set(sources.map(({ filename }) => path.resolve(filename)));
+  const changed = new Set(
+    changedFiles.map((filename) =>
+      path.resolve(root, filename.split("/").join(path.sep)),
+    ),
+  );
+  const reverseImports = new Map<string, Set<string>>();
+
+  for (const source of sources) {
+    if (!/\.[jt]sx?$/.test(source.filename)) continue;
+    for (const specifier of relativeSpecifiers(source.source)) {
+      const target = resolveSourceImport(source.filename, specifier, known);
+      if (!target) continue;
+      const importers = reverseImports.get(target) ?? new Set<string>();
+      importers.add(path.resolve(source.filename));
+      reverseImports.set(target, importers);
+    }
+  }
+
+  const affected = new Set(
+    [...changed].filter((filename) => known.has(filename)),
+  );
+  let frontier = new Set(changed);
+  for (let hop = 0; hop < Math.max(0, maxHops); hop += 1) {
+    const next = new Set<string>();
+    for (const filename of frontier) {
+      for (const importer of reverseImports.get(filename) ?? []) {
+        if (affected.has(importer)) continue;
+        affected.add(importer);
+        next.add(importer);
+      }
+    }
+    frontier = next;
+    if (frontier.size === 0) break;
+  }
+  return affected;
+}
+
+function relativeSpecifiers(source: string): string[] {
+  const specifiers: string[] = [];
+  const pattern = /(?:\bfrom\s+|\bimport\s*)(["'])(\.[^"']+)\1/g;
+  for (const match of source.matchAll(pattern)) {
+    if (match[2]) specifiers.push(match[2]);
+  }
+  return specifiers;
+}
+
+function resolveSourceImport(
+  filename: string,
+  specifier: string,
+  known: Set<string>,
+): string | null {
+  const base = path.resolve(path.dirname(filename), specifier);
+  const extensions = [".ts", ".tsx", ".js", ".jsx"];
+  const candidates = [
+    base,
+    ...extensions.map((extension) => `${base}${extension}`),
+    ...extensions.map((extension) => path.join(base, `index${extension}`)),
+  ];
+  return candidates.find((candidate) => known.has(candidate)) ?? null;
 }
 
 export function analyzeDetections(errors: DetectedError[]): Diagnostic[] {

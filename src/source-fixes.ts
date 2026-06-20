@@ -4,6 +4,8 @@ import fg from "fast-glob";
 import { Lang, parse } from "@ast-grep/napi";
 import type { SgNode } from "@ast-grep/napi";
 import type { ErrorAtlasConfig } from "./types.js";
+import type { CatalogEntry, ErrorCatalog } from "./types.js";
+import { readCatalogIfPresent } from "./catalog.js";
 import { propertyNumber, propertyString } from "./extractors/shared.js";
 
 export interface SourceFix {
@@ -14,6 +16,9 @@ export interface SourceFix {
   message: string;
   insertionIndex: number;
   insertion: string;
+  safe: boolean;
+  rationale: string;
+  source: "catalog" | "generated";
 }
 
 export async function planSourceFixes(
@@ -21,6 +26,9 @@ export async function planSourceFixes(
   config: ErrorAtlasConfig,
 ): Promise<SourceFix[]> {
   const absoluteRoot = path.resolve(root);
+  const catalog = await readCatalogIfPresent(
+    path.resolve(absoluteRoot, config.catalog),
+  );
   const files = await fg(config.include, {
     cwd: absoluteRoot,
     ignore: config.exclude,
@@ -37,10 +45,17 @@ export async function planSourceFixes(
         .map(async (relativeFile) => {
           const filename = path.join(absoluteRoot, relativeFile);
           const source = await readFile(filename, "utf8");
-          return planTypeScriptFileFixes(absoluteRoot, filename, source);
+          return planTypeScriptFileFixes(
+            absoluteRoot,
+            filename,
+            source,
+            catalog,
+            config.fix.codePrefix,
+          );
         }),
     )
   ).flat();
+  markIntraPlanCollisions(fixes);
   return fixes.sort(
     (left, right) =>
       left.file.localeCompare(right.file) || left.line - right.line,
@@ -54,6 +69,7 @@ export async function applySourceFixes(
   const absoluteRoot = path.resolve(root);
   const byFile = new Map<string, SourceFix[]>();
   for (const fix of fixes) {
+    if (!fix.safe) continue;
     const group = byFile.get(fix.file) ?? [];
     group.push(fix);
     byFile.set(fix.file, group);
@@ -75,12 +91,14 @@ export async function applySourceFixes(
 
 export function renderSourceFixes(fixes: SourceFix[]): string {
   if (fixes.length === 0) return "No safe source fixes found.\n";
+  const safe = fixes.filter((fix) => fix.safe).length;
+  const blocked = fixes.length - safe;
   return `${[
-    `Safe source fixes: ${fixes.length}`,
+    `Safe source fixes: ${safe}${blocked ? ` · blocked collisions: ${blocked}` : ""}`,
     "",
     ...fixes.map(
       (fix) =>
-        `${fix.file}:${fix.line}:${fix.column} add code ${fix.code} for ${JSON.stringify(fix.message)}`,
+        `${fix.file}:${fix.line}:${fix.column} ${fix.safe ? "add" : "skip"} code ${fix.code} for ${JSON.stringify(fix.message)}\n  Rationale: ${fix.rationale}`,
     ),
   ].join("\n")}\n`;
 }
@@ -89,6 +107,8 @@ function planTypeScriptFileFixes(
   root: string,
   filename: string,
   source: string,
+  catalog: ErrorCatalog | null,
+  codePrefix: string | null,
 ): SourceFix[] {
   const language = /\.[jt]sx$/.test(filename) ? Lang.Tsx : Lang.TypeScript;
   const tree = parse(language, source).root();
@@ -106,7 +126,7 @@ function planTypeScriptFileFixes(
         "status",
         "statusCode",
       ]);
-      addFix(root, filename, body, status, fixes, seen);
+      addFix(root, filename, body, status, fixes, seen, catalog, codePrefix);
     }
   }
 
@@ -122,7 +142,7 @@ function planTypeScriptFileFixes(
       const status = /^\d{3}$/.test(statusText.trim())
         ? Number(statusText)
         : null;
-      addFix(root, filename, body, status, fixes, seen);
+      addFix(root, filename, body, status, fixes, seen, catalog, codePrefix);
     }
   }
 
@@ -136,13 +156,16 @@ function addFix(
   status: number | null,
   fixes: SourceFix[],
   seen: Set<string>,
+  catalog: ErrorCatalog | null,
+  codePrefix: string | null,
 ): void {
   const text = body.text();
   if (!text.trimStart().startsWith("{")) return;
   if (/["']?(?:code|errorCode|error_code)["']?\s*:/.test(text)) return;
   const message = propertyString(text, ["error", "message", "detail", "title"]);
   if (!message || (status !== null && status < 400)) return;
-  const code = toErrorCode(message);
+  const identity = chooseIdentity(message, status, catalog, codePrefix);
+  const code = identity.code;
   if (!code) return;
   const range = body.range();
   const key = `${range.start.index}:${range.end.index}`;
@@ -158,7 +181,100 @@ function addFix(
     message,
     insertionIndex: range.start.index + insertion.offset,
     insertion: insertion.text,
+    safe: identity.safe,
+    rationale: identity.rationale,
+    source: identity.source,
   });
+}
+
+function chooseIdentity(
+  message: string,
+  status: number | null,
+  catalog: ErrorCatalog | null,
+  codePrefix: string | null,
+): Pick<SourceFix, "code" | "safe" | "rationale" | "source"> {
+  const exactMatches =
+    catalog?.errors.filter(
+      (entry) =>
+        catalogMessages(entry).includes(message) &&
+        (status === null || entry.status === status),
+    ) ?? [];
+  if (exactMatches.length === 1) {
+    const match = exactMatches[0]!;
+    return {
+      code: match.code,
+      safe: true,
+      source: "catalog",
+      rationale: `Reuses catalog identity ${match.code}; static message${status === null ? "" : ` and status ${status}`} match.`,
+    };
+  }
+
+  const generated = withPrefix(toErrorCode(message), codePrefix);
+  if (!generated) {
+    return {
+      code: "UNRESOLVED_ERROR",
+      safe: false,
+      source: "generated",
+      rationale:
+        "Blocked because the static message cannot produce a stable code.",
+    };
+  }
+  if (exactMatches.length > 1) {
+    return {
+      code: generated,
+      safe: false,
+      source: "generated",
+      rationale: `Blocked because ${exactMatches.length} catalog identities match the same message/status.`,
+    };
+  }
+  const collision = catalog?.errors.find((entry) => entry.code === generated);
+  if (collision) {
+    return {
+      code: generated,
+      safe: false,
+      source: "generated",
+      rationale: `Blocked because ${generated} already belongs to a different catalog message/status.`,
+    };
+  }
+  return {
+    code: generated,
+    safe: true,
+    source: "generated",
+    rationale: codePrefix
+      ? `Generated deterministically from the static message using namespace ${codePrefix}.`
+      : "Generated deterministically from the static message; no catalog identity matched.",
+  };
+}
+
+function catalogMessages(entry: CatalogEntry): string[] {
+  return [
+    ...(entry.message ? [entry.message] : []),
+    ...(entry.observedMessages ?? []),
+  ];
+}
+
+function withPrefix(code: string | null, prefix: string | null): string | null {
+  if (!code || !prefix || code.startsWith(`${prefix}_`)) return code;
+  return `${prefix}_${code}`;
+}
+
+function markIntraPlanCollisions(fixes: SourceFix[]): void {
+  const byCode = new Map<string, SourceFix[]>();
+  for (const fix of fixes.filter((item) => item.safe)) {
+    const group = byCode.get(fix.code) ?? [];
+    group.push(fix);
+    byCode.set(fix.code, group);
+  }
+  for (const [code, group] of byCode) {
+    const identities = new Set(
+      group.map((fix) => JSON.stringify([fix.message, fix.source])),
+    );
+    if (identities.size <= 1) continue;
+    for (const fix of group) {
+      fix.safe = false;
+      fix.rationale = `Blocked because ${code} would be assigned to multiple distinct messages in this fix plan.`;
+    }
+  }
 }
 
 function insertionForObject(

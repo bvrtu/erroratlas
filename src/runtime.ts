@@ -66,6 +66,15 @@ export interface MarkDeliveredContext {
   tags?: Record<string, string>;
 }
 
+export interface RuntimeMonitor {
+  captureException(
+    input: unknown,
+    context?: CaptureExceptionContext,
+  ): Promise<RuntimeExceptionEvent>;
+  markDelivered(context: MarkDeliveredContext): Promise<RuntimeDeliveryEvent>;
+  installNodeHandlers(): () => void;
+}
+
 export interface RuntimeSummary {
   events: number;
   exceptions: number;
@@ -115,7 +124,9 @@ export class MemoryRuntimeTransport implements RuntimeTransport {
   }
 }
 
-export function createRuntimeMonitor(options: RuntimeMonitorOptions) {
+export function createRuntimeMonitor(
+  options: RuntimeMonitorOptions,
+): RuntimeMonitor {
   const environment =
     options.environment ?? process.env.NODE_ENV ?? "development";
   const includeStack = options.includeStack !== false;

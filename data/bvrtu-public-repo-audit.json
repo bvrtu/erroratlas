@@ -1,18 +1,26 @@
 {
-  "schemaVersion": 1,
-  "generatedAt": "2026-06-20T13:23:27.247Z",
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-20T17:47:07.454Z",
   "owner": "bvrtu",
   "tool": {
     "name": "erroratlas",
-    "version": "0.3.0"
+    "version": "0.4.0"
   },
   "summary": {
     "repositories": 10,
     "scannedRepositories": 10,
     "failedRepositories": 0,
-    "filesScanned": 196,
+    "filesScanned": 204,
     "structuredErrors": 8,
-    "unstructuredErrors": 46
+    "unstructuredErrors": 50,
+    "structuredRate": 0.1379,
+    "codeDensity": 0.2843,
+    "uniqueStructuredCodes": 6,
+    "documentedStructuredCodes": 0,
+    "documentationCoverage": 0,
+    "statusFamilies": {
+      "4xx": 4
+    }
   },
   "repositories": [
     {
@@ -21,31 +29,38 @@
       "visibility": "PUBLIC",
       "primaryLanguage": "TypeScript",
       "defaultBranch": "main",
-      "commit": "9513298bec3ac86bde3b97787fb7f92bc75ee5d8",
-      "updatedAt": "2026-06-20T12:45:16Z",
-      "diskUsageKb": 104,
+      "commit": "c9d492492eeb1920a2fa514860b046d395a91ef2",
+      "updatedAt": "2026-06-20T13:26:32Z",
+      "diskUsageKb": 177,
       "isFork": false,
       "isArchived": false,
       "status": "scanned",
-      "filesScanned": 17,
+      "filesScanned": 25,
       "structuredErrors": 4,
-      "unstructuredErrors": 8,
-      "structuredRate": 0.3333,
+      "unstructuredErrors": 12,
+      "structuredRate": 0.25,
+      "codeDensity": 0.64,
+      "uniqueStructuredCodes": 4,
+      "documentedStructuredCodes": 0,
+      "documentationCoverage": 0,
       "languages": {
         "python": 2,
-        "typescript": 10
+        "typescript": 14
       },
       "constructors": {
         "AppError": 4,
-        "Error": 8
+        "Error": 12
       },
       "statusCodes": {
         "400": 2,
         "402": 1,
         "404": 1
       },
+      "statusFamilies": {
+        "4xx": 4
+      },
       "diagnostics": {
-        "unstructured-error": 8
+        "unstructured-error": 12
       }
     },
     {
@@ -64,6 +79,10 @@
       "structuredErrors": 0,
       "unstructuredErrors": 5,
       "structuredRate": 0,
+      "codeDensity": 0.25,
+      "uniqueStructuredCodes": 0,
+      "documentedStructuredCodes": 0,
+      "documentationCoverage": null,
       "languages": {
         "python": 5
       },
@@ -73,6 +92,7 @@
         "ValueError": 1
       },
       "statusCodes": {},
+      "statusFamilies": {},
       "diagnostics": {
         "unstructured-error": 5
       }
@@ -93,6 +113,10 @@
       "structuredErrors": 0,
       "unstructuredErrors": 5,
       "structuredRate": 0,
+      "codeDensity": 0.2632,
+      "uniqueStructuredCodes": 0,
+      "documentedStructuredCodes": 0,
+      "documentationCoverage": null,
       "languages": {
         "python": 5
       },
@@ -102,6 +126,7 @@
         "ValueError": 1
       },
       "statusCodes": {},
+      "statusFamilies": {},
       "diagnostics": {
         "unstructured-error": 5
       }
@@ -122,6 +147,10 @@
       "structuredErrors": 4,
       "unstructuredErrors": 21,
       "structuredRate": 0.16,
+      "codeDensity": 0.463,
+      "uniqueStructuredCodes": 2,
+      "documentedStructuredCodes": 0,
+      "documentationCoverage": 0,
       "languages": {
         "dart": 21,
         "typescript": 4
@@ -132,6 +161,7 @@
         "UnsupportedError": 5
       },
       "statusCodes": {},
+      "statusFamilies": {},
       "diagnostics": {
         "unstructured-error": 21
       }
@@ -152,6 +182,10 @@
       "structuredErrors": 0,
       "unstructuredErrors": 7,
       "structuredRate": 0,
+      "codeDensity": 0.7778,
+      "uniqueStructuredCodes": 0,
+      "documentedStructuredCodes": 0,
+      "documentationCoverage": null,
       "languages": {
         "python": 7
       },
@@ -161,6 +195,7 @@
         "ValueError": 1
       },
       "statusCodes": {},
+      "statusFamilies": {},
       "diagnostics": {
         "unstructured-error": 7
       }
@@ -181,9 +216,14 @@
       "structuredErrors": 0,
       "unstructuredErrors": 0,
       "structuredRate": null,
+      "codeDensity": 0,
+      "uniqueStructuredCodes": 0,
+      "documentedStructuredCodes": 0,
+      "documentationCoverage": null,
       "languages": {},
       "constructors": {},
       "statusCodes": {},
+      "statusFamilies": {},
       "diagnostics": {}
     },
     {
@@ -202,9 +242,14 @@
       "structuredErrors": 0,
       "unstructuredErrors": 0,
       "structuredRate": null,
+      "codeDensity": 0,
+      "uniqueStructuredCodes": 0,
+      "documentedStructuredCodes": 0,
+      "documentationCoverage": null,
       "languages": {},
       "constructors": {},
       "statusCodes": {},
+      "statusFamilies": {},
       "diagnostics": {}
     },
     {
@@ -223,9 +268,14 @@
       "structuredErrors": 0,
       "unstructuredErrors": 0,
       "structuredRate": null,
+      "codeDensity": 0,
+      "uniqueStructuredCodes": 0,
+      "documentedStructuredCodes": 0,
+      "documentationCoverage": null,
       "languages": {},
       "constructors": {},
       "statusCodes": {},
+      "statusFamilies": {},
       "diagnostics": {}
     },
     {
@@ -244,9 +294,14 @@
       "structuredErrors": 0,
       "unstructuredErrors": 0,
       "structuredRate": null,
+      "codeDensity": 0,
+      "uniqueStructuredCodes": 0,
+      "documentedStructuredCodes": 0,
+      "documentationCoverage": null,
       "languages": {},
       "constructors": {},
       "statusCodes": {},
+      "statusFamilies": {},
       "diagnostics": {}
     },
     {
@@ -265,9 +320,14 @@
       "structuredErrors": 0,
       "unstructuredErrors": 0,
       "structuredRate": null,
+      "codeDensity": 0,
+      "uniqueStructuredCodes": 0,
+      "documentedStructuredCodes": 0,
+      "documentationCoverage": null,
       "languages": {},
       "constructors": {},
       "statusCodes": {},
+      "statusFamilies": {},
       "diagnostics": {}
     }
   ],

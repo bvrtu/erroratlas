@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "generatedAt": "2026-06-20T12:27:46.290Z",
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-20T17:37:24.515Z",
   "errors": [
     {
       "code": "CARD_REQUIRED",
@@ -19,7 +19,8 @@
           "endLine": 7,
           "endColumn": 73,
           "language": "python",
-          "constructor": "AppError"
+          "constructor": "AppError",
+          "flow": "propagated"
         }
       ]
     },
@@ -40,7 +41,8 @@
           "endLine": 8,
           "endColumn": 72,
           "language": "python",
-          "constructor": "AppError"
+          "constructor": "AppError",
+          "flow": "propagated"
         }
       ]
     },
@@ -61,7 +63,8 @@
           "endLine": 15,
           "endColumn": 7,
           "language": "typescript",
-          "constructor": "AppError"
+          "constructor": "AppError",
+          "flow": "propagated"
         }
       ]
     },
@@ -82,7 +85,8 @@
           "endLine": 19,
           "endColumn": 5,
           "language": "typescript",
-          "constructor": "AppError"
+          "constructor": "AppError",
+          "flow": "propagated"
         }
       ]
     }

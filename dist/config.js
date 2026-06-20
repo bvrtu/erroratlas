@@ -141,6 +141,8 @@ const DEFAULTS = {
     catalog: "erroratlas.catalog.json",
     docs: "docs/errors.md",
     openapi: null,
+    baseline: null,
+    fix: { codePrefix: null },
     failOn: "error",
 };
 export function defaultRawConfig() {
@@ -150,6 +152,8 @@ export function defaultRawConfig() {
         catalog: DEFAULTS.catalog,
         docs: DEFAULTS.docs,
         openapi: DEFAULTS.openapi,
+        baseline: DEFAULTS.baseline,
+        fix: DEFAULTS.fix,
         failOn: DEFAULTS.failOn,
         useDefaultConstructors: true,
         constructors: {
@@ -197,6 +201,10 @@ export async function loadConfig(root) {
         catalog: raw.catalog ?? DEFAULTS.catalog,
         docs: raw.docs ?? DEFAULTS.docs,
         openapi: raw.openapi ?? DEFAULTS.openapi,
+        baseline: raw.baseline ?? DEFAULTS.baseline,
+        fix: {
+            codePrefix: raw.fix?.codePrefix ?? DEFAULTS.fix.codePrefix,
+        },
         failOn: raw.failOn ?? DEFAULTS.failOn,
         constructors,
     };
@@ -210,6 +218,11 @@ function mergeConstructors(defaults, custom) {
 function validateRawConfig(config) {
     if (config.failOn && !["error", "warning"].includes(config.failOn)) {
         throw new Error('"failOn" must be either "error" or "warning".');
+    }
+    if (config.fix?.codePrefix !== undefined &&
+        config.fix.codePrefix !== null &&
+        !/^[A-Z][A-Z0-9_]*$/.test(config.fix.codePrefix)) {
+        throw new Error('"fix.codePrefix" must be an uppercase code namespace.');
     }
     for (const language of [
         "typescript",

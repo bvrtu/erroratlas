@@ -1,12 +1,21 @@
 {
-  "include": ["src/**/*.{ts,py}"],
+  "include": ["src/**/*.{ts,tsx,js,jsx,py,java,dart,swift,go,cs,kt,kts}"],
   "exclude": [],
   "catalog": "erroratlas.catalog.json",
   "docs": "docs/errors.md",
+  "openapi": null,
+  "baseline": null,
   "failOn": "error",
+  "fix": { "codePrefix": null },
   "useDefaultConstructors": true,
   "constructors": {
     "typescript": [],
-    "python": []
+    "python": [],
+    "java": [],
+    "dart": [],
+    "swift": [],
+    "go": [],
+    "csharp": [],
+    "kotlin": []
   }
 }

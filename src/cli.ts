@@ -6,6 +6,7 @@ import path from "node:path";
 import { Command, Option } from "commander";
 import {
   buildCatalog,
+  buildBaseline,
   compareWithCatalog,
   CONFIG_FILE,
   defaultRawConfig,
@@ -16,7 +17,9 @@ import {
   renderMarkdown,
   renderSarif,
   compareCatalogWithOpenApi,
+  filterBaselineDiagnostics,
   readOpenApiContract,
+  readBaseline,
   readRuntimeEvents,
   renderRuntimeSummary,
   summarizeRuntimeEvents,
@@ -197,11 +200,47 @@ program
     process.stdout.write(renderSourceFixes(fixes));
     if (options.write && fixes.length > 0) {
       await applySourceFixes(root, fixes);
-      process.stdout.write(`Applied ${fixes.length} safe source fixes.\n`);
+      process.stdout.write(
+        `Applied ${fixes.filter((fix) => fix.safe).length} safe source fixes.\n`,
+      );
     } else if (!options.write && fixes.length > 0) {
       process.stdout.write("Run with --write to apply these source changes.\n");
     }
   });
+
+program
+  .command("baseline")
+  .description(
+    "Record existing drift so CI can fail only on net-new violations",
+  )
+  .argument("[path]", "project root", ".")
+  .option("-o, --output <file>", "baseline file path")
+  .option("--catalog <file>", "override the configured catalog path")
+  .option("--openapi <file>", "compare against an OpenAPI or Swagger document")
+  .action(
+    async (
+      projectPath: string,
+      options: { output?: string; catalog?: string; openapi?: string },
+    ) => {
+      const root = path.resolve(projectPath);
+      const config = await loadConfig(root);
+      const { diagnostics } = await collectCheckDiagnostics(
+        root,
+        config,
+        options.catalog,
+        options.openapi,
+      );
+      const target = path.resolve(
+        root,
+        options.output ?? config.baseline ?? ".erroratlas/baseline.json",
+      );
+      const baseline = buildBaseline(diagnostics);
+      await writeText(target, `${JSON.stringify(baseline, null, 2)}\n`);
+      process.stdout.write(
+        `Recorded ${baseline.fingerprints.length} existing diagnostics in ${relative(root, target)}.\n`,
+      );
+    },
+  );
 
 program
   .command("check")
@@ -211,6 +250,18 @@ program
   .option("-o, --output <file>", "write output to a file")
   .option("--catalog <file>", "override the configured catalog path")
   .option("--openapi <file>", "compare against an OpenAPI or Swagger document")
+  .option("--baseline <file>", "hide diagnostics recorded in a baseline")
+  .option(
+    "--changed <files...>",
+    "scan changed files plus bounded reverse import dependents",
+  )
+  .option("--changed-files <file>", "read newline-delimited changed files")
+  .option(
+    "--affected-import-hops <count>",
+    "maximum reverse-import traversal depth",
+    parseNonnegativeInteger,
+    2,
+  )
   .addOption(
     new Option("--fail-on <severity>", "minimum failing severity").choices([
       "error",
@@ -225,36 +276,32 @@ program
         output?: string;
         catalog?: string;
         openapi?: string;
+        baseline?: string;
+        changed?: string[];
+        changedFiles?: string;
+        affectedImportHops: number;
         failOn?: "error" | "warning";
       },
     ) => {
       const root = path.resolve(projectPath);
       const config = await loadConfig(root);
-      const scan = await scanProject(root, config);
-      const catalogPath = path.resolve(root, options.catalog ?? config.catalog);
-      let catalog: ErrorCatalog;
-      try {
-        catalog = await readCatalog(catalogPath);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-          throw new Error(
-            `Catalog not found at ${relative(root, catalogPath)}. Run erroratlas generate first.`,
-          );
-        }
-        throw error;
-      }
-
-      const diagnostics = compareWithCatalog(scan, catalog);
-      const openapi = options.openapi ?? config.openapi;
-      if (openapi) {
-        const openapiPath = path.resolve(root, openapi);
-        diagnostics.push(
-          ...compareCatalogWithOpenApi(
-            buildCatalog(scan.errors, null, catalog.generatedAt),
-            await readOpenApiContract(openapiPath),
-          ),
+      const changedFiles = await resolveChangedFiles(root, options);
+      const { scan, diagnostics: allDiagnostics } =
+        await collectCheckDiagnostics(
+          root,
+          config,
+          options.catalog,
+          options.openapi,
+          changedFiles,
+          options.affectedImportHops,
         );
-        diagnostics.sort(compareDiagnosticsForCli);
+      let diagnostics = allDiagnostics;
+      const baselineFile = options.baseline ?? config.baseline;
+      if (baselineFile) {
+        diagnostics = filterBaselineDiagnostics(
+          diagnostics,
+          await readBaseline(path.resolve(root, baselineFile)),
+        );
       }
       const output = renderOutput(options.format, scan, diagnostics);
       await emit(output, options.output, root);
@@ -329,4 +376,79 @@ function compareDiagnosticsForCli(left: Diagnostic, right: Diagnostic): number {
     (left.location?.line ?? 0) - (right.location?.line ?? 0) ||
     left.ruleId.localeCompare(right.ruleId)
   );
+}
+
+async function collectCheckDiagnostics(
+  root: string,
+  config: Awaited<ReturnType<typeof loadConfig>>,
+  catalogOverride?: string,
+  openapiOverride?: string,
+  changedFiles?: string[],
+  affectedImportHops = 2,
+): Promise<{ scan: ScanResult; diagnostics: Diagnostic[] }> {
+  const incremental = Boolean(changedFiles?.length);
+  const scan = await scanProject(
+    root,
+    config,
+    changedFiles?.length ? { changedFiles, affectedImportHops } : {},
+  );
+  const catalogPath = path.resolve(root, catalogOverride ?? config.catalog);
+  let catalog: ErrorCatalog;
+  try {
+    catalog = await readCatalog(catalogPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(
+        `Catalog not found at ${relative(root, catalogPath)}. Run erroratlas generate first.`,
+      );
+    }
+    throw error;
+  }
+
+  const diagnostics = compareWithCatalog(scan, catalog).filter(
+    (diagnostic) => !incremental || diagnostic.ruleId !== "stale-error",
+  );
+  const openapi = openapiOverride ?? config.openapi;
+  if (openapi) {
+    const changedCodes = new Set(
+      scan.errors
+        .map((error) => error.code)
+        .filter((code): code is string => code !== null),
+    );
+    const openapiDiagnostics = compareCatalogWithOpenApi(
+      buildCatalog(scan.errors, null, catalog.generatedAt),
+      await readOpenApiContract(path.resolve(root, openapi)),
+    ).filter(
+      (diagnostic) =>
+        !incremental ||
+        (diagnostic.code !== null && changedCodes.has(diagnostic.code)),
+    );
+    diagnostics.push(...openapiDiagnostics);
+    diagnostics.sort(compareDiagnosticsForCli);
+  }
+  return { scan, diagnostics };
+}
+
+async function resolveChangedFiles(
+  root: string,
+  options: { changed?: string[]; changedFiles?: string },
+): Promise<string[] | undefined> {
+  const changed = [...(options.changed ?? [])];
+  if (options.changedFiles) {
+    changed.push(
+      ...(await readFile(path.resolve(root, options.changedFiles), "utf8"))
+        .split(/\r?\n/)
+        .map((filename) => filename.trim())
+        .filter(Boolean),
+    );
+  }
+  return changed.length ? [...new Set(changed)] : undefined;
+}
+
+function parseNonnegativeInteger(value: string): number {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error("affected import hops must be a non-negative integer");
+  }
+  return parsed;
 }

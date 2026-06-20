@@ -1,7 +1,7 @@
 {
   "name": "erroratlas",
-  "version": "0.3.0",
-  "description": "Static and runtime error contract analysis with catalog, OpenAPI drift, and CI enforcement across nine languages.",
+  "version": "0.4.0",
+  "description": "Source-first error contract governance with catalog, RFC 9457/OpenAPI drift, baselines, and runtime correlation.",
   "author": "bvrtu",
   "type": "module",
   "bin": {
@@ -23,6 +23,7 @@
     "build": "tsc -p tsconfig.build.json",
     "audit:github": "npm run build && node scripts/audit-github-repos.mjs",
     "dataset:publish": "node scripts/publish-audit-dataset.mjs",
+    "dataset:query": "node scripts/query-benchmark.mjs",
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -48,6 +49,9 @@
     "csharp",
     "kotlin",
     "openapi",
+    "rfc9457",
+    "problem-details",
+    "baseline",
     "observability",
     "sarif"
   ],

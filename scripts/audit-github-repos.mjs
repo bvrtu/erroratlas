@@ -2,7 +2,11 @@ import { execFile } from "node:child_process";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { loadConfig, scanProject } from "../dist/index.js";
+import {
+  loadConfig,
+  readCatalogIfPresent,
+  scanProject,
+} from "../dist/index.js";
 
 const exec = promisify(execFile);
 const owner = process.argv[2];
@@ -97,6 +101,21 @@ async function auditRepository(repository) {
     const scan = await scanProject(repositoryPath, config);
     const structured = scan.errors.filter((error) => error.structured);
     const unstructured = scan.errors.filter((error) => !error.structured);
+    const structuredCodes = new Set(
+      structured.map((error) => error.code).filter(Boolean),
+    );
+    const catalog = await readCatalogIfPresent(
+      path.resolve(repositoryPath, config.catalog),
+    );
+    const documentedCodes = new Set(
+      catalog?.errors
+        .map((entry) => entry.code)
+        .filter((code) => structuredCodes.has(code)) ?? [],
+    );
+    const statusFamilies = countBy(
+      structured.filter((error) => error.status !== null),
+      (error) => `${Math.floor(error.status / 100)}xx`,
+    );
 
     process.stdout.write(
       `${repository.nameWithOwner}: ${scan.filesScanned} files, ` +
@@ -122,12 +141,23 @@ async function auditRepository(repository) {
         scan.errors.length === 0
           ? null
           : round(structured.length / scan.errors.length),
+      codeDensity:
+        scan.filesScanned === 0
+          ? null
+          : round(scan.errors.length / scan.filesScanned),
+      uniqueStructuredCodes: structuredCodes.size,
+      documentedStructuredCodes: documentedCodes.size,
+      documentationCoverage:
+        structuredCodes.size === 0
+          ? null
+          : round(documentedCodes.size / structuredCodes.size),
       languages: countBy(scan.errors, (error) => error.language),
       constructors: countBy(scan.errors, (error) => error.constructor),
       statusCodes: countBy(
         structured.filter((error) => error.status !== null),
         (error) => String(error.status),
       ),
+      statusFamilies,
       diagnostics: countBy(scan.diagnostics, (diagnostic) => diagnostic.ruleId),
       scan,
     };
@@ -151,9 +181,14 @@ async function auditRepository(repository) {
       structuredErrors: 0,
       unstructuredErrors: 0,
       structuredRate: null,
+      codeDensity: null,
+      uniqueStructuredCodes: 0,
+      documentedStructuredCodes: 0,
+      documentationCoverage: null,
       languages: {},
       constructors: {},
       statusCodes: {},
+      statusFamilies: {},
       diagnostics: {},
       scan: null,
     };
@@ -189,7 +224,7 @@ async function cloneOrUpdate(nameWithOwner, target) {
 
 function buildDataset(generatedAt, datasetOwner, repositories) {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt,
     owner: datasetOwner,
     tool: { name: "erroratlas", version: packageJson.version },
@@ -204,6 +239,23 @@ function buildDataset(generatedAt, datasetOwner, repositories) {
       filesScanned: sum(repositories, "filesScanned"),
       structuredErrors: sum(repositories, "structuredErrors"),
       unstructuredErrors: sum(repositories, "unstructuredErrors"),
+      structuredRate: ratio(
+        sum(repositories, "structuredErrors"),
+        sum(repositories, "structuredErrors") +
+          sum(repositories, "unstructuredErrors"),
+      ),
+      codeDensity: ratio(
+        sum(repositories, "structuredErrors") +
+          sum(repositories, "unstructuredErrors"),
+        sum(repositories, "filesScanned"),
+      ),
+      uniqueStructuredCodes: sum(repositories, "uniqueStructuredCodes"),
+      documentedStructuredCodes: sum(repositories, "documentedStructuredCodes"),
+      documentationCoverage: ratio(
+        sum(repositories, "documentedStructuredCodes"),
+        sum(repositories, "uniqueStructuredCodes"),
+      ),
+      statusFamilies: mergeCounts(repositories, "statusFamilies"),
     },
     repositories,
   };
@@ -239,6 +291,22 @@ function countBy(items, key) {
 
 function sum(items, key) {
   return items.reduce((total, item) => total + item[key], 0);
+}
+
+function ratio(numerator, denominator) {
+  return denominator === 0 ? null : round(numerator / denominator);
+}
+
+function mergeCounts(items, key) {
+  const result = {};
+  for (const item of items) {
+    for (const [name, count] of Object.entries(item[key] ?? {})) {
+      result[name] = (result[name] ?? 0) + count;
+    }
+  }
+  return Object.fromEntries(
+    Object.entries(result).sort(([left], [right]) => left.localeCompare(right)),
+  );
 }
 
 function round(value) {

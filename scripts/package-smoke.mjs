@@ -94,7 +94,7 @@ try {
     [
       "--input-type=module",
       "--eval",
-      'import("erroratlas").then((m) => { if (!m.scanProject) process.exit(1); });',
+      'import("erroratlas").then((m) => { if (!(m.scanProject && m.createExpressErrorMiddleware && m.buildBaseline)) process.exit(1); });',
     ],
     consumerDir,
   );

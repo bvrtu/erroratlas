@@ -157,6 +157,42 @@ describe("TypeScript extraction", () => {
     );
   });
 
+  it("extracts RFC 9457 problem details and proven extension members", async () => {
+    const config = await loadConfig(root);
+    const [problem] = extractTypeScriptErrors({
+      root,
+      filename: path.join(root, "app/problem.ts"),
+      constructors: config.constructors.typescript,
+      source: `
+        const PROBLEM_TYPE = "https://example.com/problems/user-not-found";
+        return Response.json({
+          type: PROBLEM_TYPE,
+          title: "User not found",
+          status: 404,
+          detail: "No user exists for this identifier",
+          instance: "/requests/req-123",
+          code: "USER_NOT_FOUND",
+          retryable: false,
+          dynamic: getDynamicValue(),
+        }, { status: 404 });
+      `,
+    });
+
+    expect(problem).toMatchObject({
+      code: "USER_NOT_FOUND",
+      message: "No user exists for this identifier",
+      status: 404,
+      problem: {
+        type: "https://example.com/problems/user-not-found",
+        title: "User not found",
+        detail: "No user exists for this identifier",
+        instance: "/requests/req-123",
+        extensions: { retryable: false },
+      },
+    });
+    expect(problem?.problem?.extensions).not.toHaveProperty("dynamic");
+  });
+
   it("classifies basic try/catch and response control flow", async () => {
     const config = await loadConfig(root);
     const errors = extractTypeScriptErrors({

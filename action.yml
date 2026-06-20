@@ -13,6 +13,18 @@ inputs:
     description: Minimum failing severity (error or warning).
     required: false
     default: error
+  baseline:
+    description: Optional ErrorAtlas baseline file, relative to the project path.
+    required: false
+    default: ""
+  changed-files:
+    description: Optional newline-delimited changed-file list, relative to the project path.
+    required: false
+    default: ""
+  affected-import-hops:
+    description: Reverse-import traversal depth used with changed-files.
+    required: false
+    default: "2"
 runs:
   using: composite
   steps:
@@ -29,7 +41,16 @@ runs:
       env:
         ERRORATLAS_PATH: ${{ inputs.path }}
         ERRORATLAS_FAIL_ON: ${{ inputs.fail-on }}
-      run: >-
-        node "${GITHUB_ACTION_PATH}/dist/cli.js"
-        check "${ERRORATLAS_PATH}"
-        --fail-on "${ERRORATLAS_FAIL_ON}"
+        ERRORATLAS_BASELINE: ${{ inputs.baseline }}
+        ERRORATLAS_CHANGED_FILES: ${{ inputs.changed-files }}
+        ERRORATLAS_AFFECTED_IMPORT_HOPS: ${{ inputs.affected-import-hops }}
+      run: |
+        args=(check "${ERRORATLAS_PATH}" --fail-on "${ERRORATLAS_FAIL_ON}")
+        if [[ -n "${ERRORATLAS_BASELINE}" ]]; then
+          args+=(--baseline "${ERRORATLAS_BASELINE}")
+        fi
+        if [[ -n "${ERRORATLAS_CHANGED_FILES}" ]]; then
+          args+=(--changed-files "${ERRORATLAS_CHANGED_FILES}")
+          args+=(--affected-import-hops "${ERRORATLAS_AFFECTED_IMPORT_HOPS}")
+        fi
+        node "${GITHUB_ACTION_PATH}/dist/cli.js" "${args[@]}"

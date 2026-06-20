@@ -53,6 +53,11 @@ export interface MarkDeliveredContext {
     status?: number;
     tags?: Record<string, string>;
 }
+export interface RuntimeMonitor {
+    captureException(input: unknown, context?: CaptureExceptionContext): Promise<RuntimeExceptionEvent>;
+    markDelivered(context: MarkDeliveredContext): Promise<RuntimeDeliveryEvent>;
+    installNodeHandlers(): () => void;
+}
 export interface RuntimeSummary {
     events: number;
     exceptions: number;
@@ -79,11 +84,7 @@ export declare class MemoryRuntimeTransport implements RuntimeTransport {
     readonly events: RuntimeEvent[];
     send(event: RuntimeEvent): Promise<void>;
 }
-export declare function createRuntimeMonitor(options: RuntimeMonitorOptions): {
-    captureException: (input: unknown, context?: CaptureExceptionContext) => Promise<RuntimeExceptionEvent>;
-    markDelivered: (context: MarkDeliveredContext) => Promise<RuntimeDeliveryEvent>;
-    installNodeHandlers: () => () => void;
-};
+export declare function createRuntimeMonitor(options: RuntimeMonitorOptions): RuntimeMonitor;
 export declare function readRuntimeEvents(filename: string): Promise<RuntimeEvent[]>;
 export declare function summarizeRuntimeEvents(events: RuntimeEvent[]): RuntimeSummary;
 export declare function renderRuntimeSummary(summary: RuntimeSummary): string;

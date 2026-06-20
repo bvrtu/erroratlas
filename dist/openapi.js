@@ -37,14 +37,31 @@ export async function readOpenApiContract(filename) {
                 if (!isErrorStatus(statusKey))
                     continue;
                 const response = resolveValue(responseValue, document);
-                const codes = collectCodes(response, document);
                 const status = /^\d{3}$/.test(statusKey) ? Number(statusKey) : null;
-                for (const code of codes) {
-                    contracts.push({
-                        code,
-                        status,
-                        operation: `${method.toUpperCase()} ${route}`,
-                    });
+                const operationName = `${method.toUpperCase()} ${route}`;
+                const content = isRecord(response)
+                    ? resolveObject(response.content, document)
+                    : null;
+                if (content) {
+                    for (const [mediaType, mediaValue] of Object.entries(content)) {
+                        const problem = collectProblemShape(mediaValue, document);
+                        for (const code of collectCodes(mediaValue, document)) {
+                            contracts.push({
+                                code,
+                                status,
+                                operation: operationName,
+                                ...(isProblemMediaType(mediaType) || problem
+                                    ? { mediaType }
+                                    : {}),
+                                ...(problem ? { problem } : {}),
+                            });
+                        }
+                    }
+                }
+                else {
+                    for (const code of collectCodes(response, document)) {
+                        contracts.push({ code, status, operation: operationName });
+                    }
                 }
             }
         }
@@ -98,6 +115,37 @@ export function compareCatalogWithOpenApi(catalog, contract) {
                 location,
             });
         }
+        if (source.problem &&
+            !documented.some((entry) => entry.mediaType ? isProblemMediaType(entry.mediaType) : false)) {
+            diagnostics.push({
+                ruleId: "openapi-problem-media-type",
+                severity: "error",
+                message: `${code} is an RFC 9457 problem in source but OpenAPI does not expose it as application/problem+json.`,
+                code,
+                location,
+            });
+        }
+        if (source.problem) {
+            const conflictingFields = ["type", "title", "detail", "instance"].filter((field) => {
+                const sourceValue = source.problem?.[field];
+                const documentedValues = new Set(documented
+                    .map((entry) => entry.problem?.[field])
+                    .filter((value) => typeof value === "string"));
+                return (sourceValue !== null &&
+                    sourceValue !== undefined &&
+                    documentedValues.size > 0 &&
+                    !documentedValues.has(sourceValue));
+            });
+            if (conflictingFields.length) {
+                diagnostics.push({
+                    ruleId: "openapi-problem-details-drift",
+                    severity: "error",
+                    message: `${code} has RFC 9457 drift in: ${conflictingFields.join(", ")}.`,
+                    code,
+                    location,
+                });
+            }
+        }
     }
     for (const [code, entries] of contractByCode) {
         if (sourceByCode.has(code))
@@ -111,6 +159,72 @@ export function compareCatalogWithOpenApi(catalog, contract) {
         });
     }
     return diagnostics.sort(compareDiagnostics);
+}
+function collectProblemShape(value, document) {
+    const candidates = new Map(["type", "title", "detail", "instance"].map((field) => [
+        field,
+        new Set(),
+    ]));
+    const visited = new Set();
+    function add(field, input) {
+        const resolved = resolveValue(input, document);
+        if (typeof resolved === "string") {
+            candidates.get(field)?.add(resolved);
+            return;
+        }
+        if (!isRecord(resolved))
+            return;
+        for (const candidate of [
+            resolved.const,
+            resolved.example,
+            resolved.default,
+        ]) {
+            if (typeof candidate === "string")
+                candidates.get(field)?.add(candidate);
+        }
+        if (Array.isArray(resolved.enum) && resolved.enum.length === 1) {
+            const candidate = resolved.enum[0];
+            if (typeof candidate === "string")
+                candidates.get(field)?.add(candidate);
+        }
+    }
+    function visit(input, depth = 0) {
+        if (depth > 30)
+            return;
+        const resolved = resolveValue(input, document);
+        if (Array.isArray(resolved)) {
+            for (const item of resolved)
+                visit(item, depth + 1);
+            return;
+        }
+        if (!isRecord(resolved) || visited.has(resolved))
+            return;
+        visited.add(resolved);
+        const properties = resolveObject(resolved.properties, document);
+        if (properties) {
+            for (const field of ["type", "title", "detail", "instance"]) {
+                if (field in properties)
+                    add(field, properties[field]);
+            }
+        }
+        const looksLikeExample = ["title", "detail", "instance"].some((field) => field in resolved);
+        if (looksLikeExample) {
+            for (const field of ["type", "title", "detail", "instance"]) {
+                if (field in resolved)
+                    add(field, resolved[field]);
+            }
+        }
+        for (const child of Object.values(resolved))
+            visit(child, depth + 1);
+    }
+    visit(value);
+    const problem = {};
+    for (const [field, values] of candidates) {
+        const [only] = values;
+        if (values.size === 1 && only !== undefined)
+            problem[field] = only;
+    }
+    return Object.keys(problem).length ? problem : undefined;
 }
 function collectCodes(value, document) {
     const codes = new Set();
@@ -176,11 +290,15 @@ function resolveValue(value, document) {
 function deduplicateContracts(contracts) {
     const unique = new Map();
     for (const entry of contracts) {
-        unique.set(`${entry.code}\0${entry.status}\0${entry.operation}`, entry);
+        unique.set(`${entry.code}\0${entry.status}\0${entry.operation}\0${entry.mediaType ?? ""}\0${JSON.stringify(entry.problem ?? {})}`, entry);
     }
     return [...unique.values()].sort((left, right) => left.code.localeCompare(right.code) ||
         (left.status ?? 0) - (right.status ?? 0) ||
         left.operation.localeCompare(right.operation));
+}
+function isProblemMediaType(mediaType) {
+    return (mediaType.split(";", 1)[0]?.trim().toLowerCase() ===
+        "application/problem+json");
 }
 function isCodeKey(key) {
     return ["code", "errorCode", "error_code"].includes(key);

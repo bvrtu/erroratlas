@@ -1,86 +1,62 @@
 # Architecture
 
-ErrorAtlas separates static detection, contract policy, runtime collection, and presentation so each can evolve independently.
+ErrorAtlas is source-first. Static detection proves what a codebase emits; normalization, policy, runtime correlation, outputs, and adapters consume that evidence without changing detection semantics.
 
 ```text
-source files ──► AST extractors ──► normalized error definitions
-                                          │
-                                          ├──► catalog ──► JSON + Markdown
-committed catalog ─────────────────────────┤
-OpenAPI / Swagger ──► contract extractor ──┴──► drift policy ──► console/JSON/SARIF
+source ──► language detectors ──► normalized definitions ──► catalog
+                  │                       │                    │
+                  │                       └──► drift policy ◄──┤
+                  │                                  ▲        │
+                  └── confidence diagnostics         └── OpenAPI / RFC 9457
 
-application runtime ──► runtime monitor ──► JSONL or explicit HTTP transport
-                                                   │
-                                                   └──► delivery correlation report
+runtime ──► monitor ──► transport ──► correlation report
+framework ──► thin adapter ──────────┘
 ```
 
-## Detection
+## Module boundaries
 
-All language extractors use tree-sitter grammars through ast-grep. AST matching identifies thrown/returned constructors and supported response calls; literal parsing is then limited to matched argument or object nodes. This avoids false matches in comments, strings, snapshots, and unrelated objects.
+- `extractors/`: AST detection and bounded static proof. It does not decide CI severity or write files.
+- `scanner.ts`: file selection, incremental affected-import traversal, normalization, and detection diagnostics.
+- `catalog.ts`, `openapi.ts`, `baseline.ts`: contract policy. They consume normalized records and never parse source.
+- `runtime.ts`: versioned events and application-owned transports. It has no dependency on static scanning.
+- `adapters/`: thin framework-shaped wrappers around the runtime monitor and optional RFC 9457 responses.
+- `reporters.ts`: console, Markdown, JSON, and SARIF presentation.
+- `source-fixes.ts`: conservative edit planning and application; dry-run is the default.
 
-TypeScript/JavaScript builds a bounded symbol index for immutable literals in the current file and relative imports. It also resolves direct local factory wrappers. Values outside those deterministic boundaries become `null` and produce an `unstructured-error` finding instead of a guess.
+## Confidence rules
 
-## Normalized model
+ErrorAtlas records a value only when it is a literal or can be reached through a deterministic chain. TypeScript/JavaScript analysis supports:
 
-Every detection becomes the same language-independent record:
+- immutable local aliases, object members, and explicitly initialized enum members;
+- relative named, default, and namespace imports;
+- named re-exports and `export *` chains;
+- at most two cross-file edges from use site to definition;
+- direct factories and at most two factory-wrapper calls;
+- factory arguments that substitute exact parameter references;
+- `.ts`, `.tsx`, `.js`, `.jsx`, and directory `index` resolution.
 
-```json
-{
-  "code": "USER_NOT_FOUND",
-  "message": "The requested user was not found",
-  "status": 404,
-  "constructor": "AppError",
-  "language": "typescript",
-  "structured": true,
-  "flow": "propagated",
-  "location": {
-    "file": "src/users.ts",
-    "line": 42,
-    "column": 11,
-    "endLine": 42,
-    "endColumn": 86
-  }
-}
-```
+It intentionally does not evaluate computed properties, mutation, function execution, package imports, TypeScript path aliases, conditional values, template interpolation, ambiguous wildcard exports, or chains beyond those bounds. Insufficient proof becomes `null`/unstructured and produces a diagnostic. It is never promoted to a fact.
 
-Descriptions and resolutions are human-editable fields stored in the committed catalog and preserved across regeneration. `erroratlas enrich` can fill empty fields with deterministic, status-aware suggestions but never replaces authored text.
+Other language packs use AST-matched constructor and response profiles. They remain syntax-directed and do not claim whole-program symbol resolution.
 
-## Drift policy
+Incremental scanning extracts only changed files and reverse importers up to the configured hop count. The full TypeScript source set is still indexed so selected files receive the same bounded proof as a full scan. Deletions and dynamic imports may require a full scan; CI should run one periodically.
 
-The source code is authoritative for the code, static message, status, and occurrences. The catalog is authoritative for description and resolution. `erroratlas check` compares the two representations without modifying either.
+## Normalized model and ownership
 
-When configured, OpenAPI is a third contract surface. ErrorAtlas extracts static codes from 4xx/5xx response examples, enums, constants, and defaults (including local `$ref` targets), then detects source codes absent from OpenAPI, stale OpenAPI codes, and HTTP status drift.
+The normalized definition contains code, message, status, constructor, language, flow, location, and optional RFC 9457 problem details. Source owns machine facts. The committed catalog owns human-authored `description` and `resolution`. Regeneration preserves those fields.
 
-## Runtime model
+Catalog schema v2 adds optional `problem` data. Readers accept v1 and v2. A v1 catalog is not failed for missing problem fields; the next `generate` migrates it to v2 while preserving authored text.
 
-The optional runtime SDK emits versioned `exception` and `delivery` events. Exception events contain service/environment, error name/message/stack, code/status when present, handled state, mechanism, tags, and an optional trace ID. Delivery events use the same trace ID to state that an error reached an HTTP, UI, queue, or custom boundary.
+## Policy and mutation
 
-Transports are application-owned. JSONL is local by default; HTTP requires an explicit endpoint. Transport failures are swallowed after invoking an optional error callback so monitoring cannot take down the monitored application. Error messages and stacks can contain sensitive data, so production users should control retention, redaction, and endpoint access.
+Catalog comparison detects source drift. OpenAPI comparison extracts proven codes and problem-detail fields from 4xx/5xx responses, local `$ref` targets, examples, enums, constants, and defaults.
 
-The runtime layer does not yet provide hosted storage, alerting, symbolication, or distributed tracing. Its event schema and transport interface are designed so those can be added without coupling them to the static analyzer.
+Baselines store diagnostic fingerprints without source text. Matching is count-aware and line-independent; a second identical violation is still new.
 
-## Safe mutation
+`fix` edits only explicit TypeScript/JavaScript API response objects. It first reuses a unique catalog identity, then applies an optional namespace to a deterministic message-derived code. Catalog or intra-plan collisions are blocked. Exception classes, control flow, and imports are never rewritten.
 
-`erroratlas fix` is dry-run-first. The initial fixer only adds a generated `code` property to explicit TypeScript/JavaScript API error response objects with static messages. It does not replace exception classes, insert imports, or rewrite control flow. `erroratlas enrich --write` changes only empty catalog documentation fields.
+## Runtime and privacy
 
-## Benchmark dataset
+Runtime collection is opt-in. JSONL remains local; HTTP transport uses only a caller-provided endpoint. Adapters capture exceptions and correlate deliveries, but do not provide storage, dashboards, alerting, tracing, or symbolication.
 
-The planned Error Contract Benchmark will publish derived, source-free measurements from opt-in and permissively licensed repositories. It will not redistribute source code or private error text.
-
-Proposed row-level schema:
-
-| Field                    | Type      | Description                                                |
-| ------------------------ | --------- | ---------------------------------------------------------- |
-| `repository`             | string    | Public repository URL.                                     |
-| `commit`                 | string    | Audited commit SHA.                                        |
-| `scanned_at`             | timestamp | Scan time in UTC.                                          |
-| `language`               | enum      | Language extractor used.                                   |
-| `files_scanned`          | integer   | Number of eligible source files.                           |
-| `structured_errors`      | integer   | Errors with static machine-readable codes.                 |
-| `unstructured_errors`    | integer   | Thrown errors without static codes.                        |
-| `documented_errors`      | integer   | Codes present in the repository catalog.                   |
-| `conflicting_codes`      | integer   | Codes with inconsistent definitions.                       |
-| `documentation_coverage` | number    | Documented structured errors divided by structured errors. |
-| `license_spdx`           | string    | Repository license at scan time.                           |
-
-The first API can remain a static, versioned JSON/Parquet release with a tiny read-only HTTP layer. This keeps the dataset reproducible before adding infrastructure.
+Benchmark publication accepts derived public-repository aggregates only. The sanitizer rejects non-public rows and raw scan payloads. Published data excludes source, paths, messages, codes, and private metadata.

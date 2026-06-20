@@ -7,6 +7,9 @@ export interface SourceFix {
     message: string;
     insertionIndex: number;
     insertion: string;
+    safe: boolean;
+    rationale: string;
+    source: "catalog" | "generated";
 }
 export declare function planSourceFixes(root: string, config: ErrorAtlasConfig): Promise<SourceFix[]>;
 export declare function applySourceFixes(root: string, fixes: SourceFix[]): Promise<void>;

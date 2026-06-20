@@ -10,6 +10,15 @@ export type SupportedLanguage =
 
 export type Severity = "error" | "warning" | "note";
 export type ErrorFlow = "propagated" | "caught" | "rethrown" | "returned";
+export type ProblemExtensionValue = string | number | boolean | null;
+
+export interface ProblemDetails {
+  type: string | null;
+  title: string | null;
+  detail: string | null;
+  instance: string | null;
+  extensions: Record<string, ProblemExtensionValue>;
+}
 
 export interface SourceLocation {
   file: string;
@@ -28,12 +37,18 @@ export interface ConstructorSpec {
   allowMessageVariants?: boolean;
 }
 
+export interface FixPolicy {
+  codePrefix: string | null;
+}
+
 export interface ErrorAtlasConfig {
   include: string[];
   exclude: string[];
   catalog: string;
   docs: string;
   openapi: string | null;
+  baseline: string | null;
+  fix: FixPolicy;
   failOn: Exclude<Severity, "note">;
   constructors: Record<SupportedLanguage, ConstructorSpec[]>;
 }
@@ -46,6 +61,7 @@ export interface DetectedError {
   language: SupportedLanguage;
   structured: boolean;
   allowMessageVariants: boolean;
+  problem?: ProblemDetails;
   flow?: ErrorFlow;
   location: SourceLocation;
 }
@@ -63,11 +79,12 @@ export interface CatalogEntry {
   status: number | null;
   description: string;
   resolution: string;
+  problem?: ProblemDetails;
   occurrences: CatalogOccurrence[];
 }
 
 export interface ErrorCatalog {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   generatedAt: string;
   errors: CatalogEntry[];
 }
@@ -80,10 +97,13 @@ export interface Diagnostic {
     | "stale-error"
     | "message-drift"
     | "status-drift"
+    | "problem-details-drift"
     | "missing-resolution"
     | "openapi-undocumented-error"
     | "openapi-stale-error"
     | "openapi-status-drift"
+    | "openapi-problem-media-type"
+    | "openapi-problem-details-drift"
     | "openapi-no-error-codes";
   severity: Severity;
   message: string;
@@ -108,6 +128,8 @@ export interface RawConfig {
   catalog?: string;
   docs?: string;
   openapi?: string | null;
+  baseline?: string | null;
+  fix?: Partial<FixPolicy>;
   failOn?: Exclude<Severity, "note">;
   useDefaultConstructors?: boolean;
   constructors?: Partial<Record<SupportedLanguage, ConstructorSpec[]>>;
