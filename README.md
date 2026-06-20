@@ -1,5 +1,9 @@
 # ErrorAtlas
 
+[![CI](https://github.com/bvrtu/erroratlas/actions/workflows/ci.yml/badge.svg)](https://github.com/bvrtu/erroratlas/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/bvrtu/erroratlas)](https://github.com/bvrtu/erroratlas/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Keep the errors your application throws and the errors your documentation promises in sync.**
 
 ErrorAtlas is an AST-powered CLI and GitHub Action that discovers application errors in TypeScript and Python, generates a human-editable error catalog, and fails CI when code and documentation drift apart.
