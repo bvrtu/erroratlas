@@ -4,7 +4,11 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadConfig } from "../src/config.js";
 import { scanProject } from "../src/scanner.js";
-import { applySourceFixes, planSourceFixes } from "../src/source-fixes.js";
+import {
+  applySourceFixes,
+  planSourceFixes,
+  renderSourceFixes,
+} from "../src/source-fixes.js";
 import {
   applyCatalogDocumentation,
   suggestCatalogDocumentation,
@@ -97,6 +101,80 @@ describe("safe source fixes", () => {
         "PAYMENT_WAS_DECLINED",
       ]),
     );
+  });
+
+  it("prefers catalog identities and applies a configured namespace", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-fix-"));
+    temporaryDirectories.push(root);
+    await mkdir(path.join(root, "src"));
+    await writeFile(
+      path.join(root, "erroratlas.config.json"),
+      `${JSON.stringify({ fix: { codePrefix: "API" } })}\n`,
+    );
+    await writeFile(
+      path.join(root, "erroratlas.catalog.json"),
+      `${JSON.stringify({
+        schemaVersion: 2,
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        errors: [entry("USER_NOT_FOUND", "User was not found", 404)],
+      })}\n`,
+    );
+    await writeFile(
+      path.join(root, "src", "api.ts"),
+      `
+        res.status(404).json({ error: "User was not found" });
+        res.status(402).json({ error: "Payment declined" });
+      `,
+    );
+
+    const fixes = await planSourceFixes(root, await loadConfig(root));
+    expect(fixes).toEqual([
+      expect.objectContaining({
+        code: "USER_NOT_FOUND",
+        source: "catalog",
+        safe: true,
+      }),
+      expect.objectContaining({
+        code: "API_PAYMENT_DECLINED",
+        source: "generated",
+        safe: true,
+      }),
+    ]);
+    expect(renderSourceFixes(fixes)).toContain("Rationale:");
+    expect(renderSourceFixes(fixes)).toContain("Reuses catalog identity");
+  });
+
+  it("blocks catalog and intra-plan code collisions", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-fix-"));
+    temporaryDirectories.push(root);
+    await mkdir(path.join(root, "src"));
+    await writeFile(
+      path.join(root, "erroratlas.config.json"),
+      `${JSON.stringify({ fix: { codePrefix: "API" } })}\n`,
+    );
+    await writeFile(
+      path.join(root, "erroratlas.catalog.json"),
+      `${JSON.stringify({
+        schemaVersion: 2,
+        generatedAt: "2026-06-20T00:00:00.000Z",
+        errors: [entry("API_PAYMENT_DECLINED", "A different failure", 500)],
+      })}\n`,
+    );
+    const filename = path.join(root, "src", "api.ts");
+    const source = `
+      res.status(402).json({ error: "Payment declined" });
+      res.status(400).json({ error: "A-B" });
+      res.status(400).json({ error: "A B" });
+    `;
+    await writeFile(filename, source);
+
+    const fixes = await planSourceFixes(root, await loadConfig(root));
+    expect(fixes).toHaveLength(3);
+    expect(fixes.every((fix) => !fix.safe)).toBe(true);
+    expect(renderSourceFixes(fixes)).toContain("blocked collisions: 3");
+
+    await applySourceFixes(root, fixes);
+    expect(await readFile(filename, "utf8")).toBe(source);
   });
 });
 

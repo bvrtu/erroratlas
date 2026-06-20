@@ -54,6 +54,42 @@ describe("catalog generation", () => {
       resolution: "Verify the user identifier.",
     });
     expect(catalog.errors[0]?.occurrences).toHaveLength(2);
+    expect(catalog.schemaVersion).toBe(2);
+  });
+
+  it("adds problem details without overwriting v1 human documentation", () => {
+    const problem = {
+      type: "https://example.com/problems/user-not-found",
+      title: "User not found",
+      detail: "User was not found",
+      instance: null,
+      extensions: { retryable: false },
+    };
+    const catalog = buildCatalog([{ ...baseError, problem }], {
+      schemaVersion: 1,
+      generatedAt: "2026-01-01T00:00:00.000Z",
+      errors: [
+        {
+          code: "USER_NOT_FOUND",
+          message: "User was not found",
+          status: 404,
+          description: "Human description",
+          resolution: "Human resolution",
+          occurrences: [],
+        },
+      ],
+    });
+
+    expect(catalog).toMatchObject({
+      schemaVersion: 2,
+      errors: [
+        {
+          description: "Human description",
+          resolution: "Human resolution",
+          problem,
+        },
+      ],
+    });
   });
 });
 
@@ -147,5 +183,39 @@ describe("catalog drift", () => {
       message: null,
       observedMessages: ["News loading failed", "Notification delivery failed"],
     });
+  });
+
+  it("compares problem details only after a catalog migrates to schema v2", () => {
+    const scan: ScanResult = {
+      root: "/fixture",
+      filesScanned: 1,
+      errors: [
+        {
+          ...baseError,
+          problem: {
+            type: "https://example.com/problems/user-not-found",
+            title: "User not found",
+            detail: "User was not found",
+            instance: null,
+            extensions: {},
+          },
+        },
+      ],
+      diagnostics: [],
+    };
+    const legacy = buildCatalog([baseError]);
+    legacy.schemaVersion = 1;
+    expect(compareWithCatalog(scan, legacy)).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ruleId: "problem-details-drift" }),
+      ]),
+    );
+
+    legacy.schemaVersion = 2;
+    expect(compareWithCatalog(scan, legacy)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ruleId: "problem-details-drift" }),
+      ]),
+    );
   });
 });

@@ -6,7 +6,9 @@
 
 **Keep the errors your application throws and the errors your documentation promises in sync.**
 
-ErrorAtlas is an AST-powered CLI, runtime SDK, and GitHub Action that discovers application errors and API error responses in TypeScript, JavaScript, Python, Java, Dart, Swift, Go, C#, and Kotlin; generates a human-editable error catalog; compares it with OpenAPI; and fails CI when contracts drift apart.
+ErrorAtlas is a source-first error-contract governance tool. Its AST-powered CLI proves which application errors and API error responses exist in TypeScript, JavaScript, Python, Java, Dart, Swift, Go, C#, and Kotlin; then keeps a human-editable catalog, OpenAPI/RFC 9457, CI, and optional runtime evidence aligned with that source truth.
+
+It is not a generic observability platform and not merely an OpenAPI diff. See [positioning](docs/positioning.md).
 
 ```text
 ✖ src/users.ts:42:11 [undocumented-error] USER_SUSPENDED exists in source but is missing from the catalog.
@@ -27,6 +29,8 @@ ErrorAtlas makes the error contract executable:
 - **Observe:** optionally collect runtime exceptions, stack traces, handled state, and user-delivery correlation.
 - **Integrate:** emit console, JSON, Markdown, and SARIF output.
 - **Stay private:** scan locally without uploading source code or error messages.
+
+For maintainers, this turns a stale error table into an enforceable contract. For legacy adopters, baseline mode makes rollout incremental. For recruiters and engineering leaders, the repository demonstrates AST analysis, safe schema evolution, conservative mutation, multi-platform packaging, and privacy-aware data engineering.
 
 ## Quick start
 
@@ -92,7 +96,7 @@ throw new Error("Database unavailable");
 
 Dynamic codes or messages are intentionally reported as unstructured. ErrorAtlas only records values it can prove from source.
 
-TypeScript and JavaScript scans also recognize relative imported literal constants, direct local factory wrappers, and common API response styles:
+TypeScript and JavaScript scans also recognize proven local aliases, enum/object members, default/named/namespace imports, re-export chains, bounded factory wrappers, and common API response styles:
 
 ```ts
 return NextResponse.json(
@@ -154,11 +158,22 @@ erroratlas enrich --write
 
 ### `erroratlas fix [path]`
 
-Preview safe source edits that add generated machine codes to explicit TypeScript/JavaScript API error response objects. Source files change only with `--write`.
+Preview catalog-aware source edits for explicit TypeScript/JavaScript API response objects. Existing catalog identities win; new identities follow optional prefix policy, and collisions are blocked with a rationale. Source files change only with `--write`.
 
 ```bash
 erroratlas fix
 erroratlas fix --write
+```
+
+### `erroratlas baseline [path]`
+
+Record accepted existing diagnostics so `check` can show and fail only on net-new violations.
+
+```bash
+erroratlas baseline --output .erroratlas/baseline.json
+erroratlas check --baseline .erroratlas/baseline.json
+git diff --name-only origin/main...HEAD > .erroratlas/changed-files.txt
+erroratlas check --changed-files .erroratlas/changed-files.txt
 ```
 
 ### `erroratlas runtime-report [file]`
@@ -181,7 +196,9 @@ erroratlas runtime-report events.jsonl --format json
   "catalog": "erroratlas.catalog.json",
   "docs": "docs/errors.md",
   "openapi": "openapi.yaml",
+  "baseline": ".erroratlas/baseline.json",
   "failOn": "error",
+  "fix": { "codePrefix": "API" },
   "useDefaultConstructors": true,
   "constructors": {
     "typescript": [
@@ -216,6 +233,8 @@ Built-in profiles cover common application errors, NestJS HTTP exceptions, Fireb
 
 Set `openapi` to `null` when OpenAPI comparison is not needed. Both OpenAPI/Swagger JSON and YAML are supported.
 
+`baseline` is optional. `fix.codePrefix` must be an uppercase namespace such as `API` or `PAYMENTS`; it affects only new deterministic suggestions.
+
 ## GitHub Actions
 
 After the first generated catalog is committed:
@@ -230,7 +249,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: bvrtu/erroratlas@v0.3.0
+      - uses: bvrtu/erroratlas@v0.4.0
         with:
           path: .
           fail-on: error
@@ -240,19 +259,22 @@ SARIF output can be uploaded to GitHub code scanning so findings appear inline o
 
 ## Rules
 
-| Rule                         | Default severity | Meaning                                           |
-| ---------------------------- | ---------------- | ------------------------------------------------- |
-| `undocumented-error`         | error            | A source error is missing from the catalog.       |
-| `message-drift`              | error            | The static message differs from the catalog.      |
-| `status-drift`               | error            | The HTTP status differs from the catalog.         |
-| `duplicate-definition`       | error            | One code has conflicting source definitions.      |
-| `stale-error`                | warning          | A catalog entry no longer exists in source.       |
-| `unstructured-error`         | warning          | A thrown error has no static code.                |
-| `missing-resolution`         | note             | An error has no human-authored resolution.        |
-| `openapi-undocumented-error` | error            | A source code is missing from OpenAPI responses.  |
-| `openapi-status-drift`       | error            | Source and OpenAPI HTTP statuses differ.          |
-| `openapi-stale-error`        | warning          | OpenAPI documents a code not found in source.     |
-| `openapi-no-error-codes`     | note             | OpenAPI exposes no static error codes to compare. |
+| Rule                            | Default severity | Meaning                                           |
+| ------------------------------- | ---------------- | ------------------------------------------------- |
+| `undocumented-error`            | error            | A source error is missing from the catalog.       |
+| `message-drift`                 | error            | The static message differs from the catalog.      |
+| `status-drift`                  | error            | The HTTP status differs from the catalog.         |
+| `problem-details-drift`         | error            | Proven RFC 9457 fields differ from the catalog.   |
+| `duplicate-definition`          | error            | One code has conflicting source definitions.      |
+| `stale-error`                   | warning          | A catalog entry no longer exists in source.       |
+| `unstructured-error`            | warning          | A thrown error has no static code.                |
+| `missing-resolution`            | note             | An error has no human-authored resolution.        |
+| `openapi-undocumented-error`    | error            | A source code is missing from OpenAPI responses.  |
+| `openapi-status-drift`          | error            | Source and OpenAPI HTTP statuses differ.          |
+| `openapi-problem-media-type`    | error            | A source problem is not exposed as problem+json.  |
+| `openapi-problem-details-drift` | error            | Proven RFC 9457 fields differ from OpenAPI.       |
+| `openapi-stale-error`           | warning          | OpenAPI documents a code not found in source.     |
+| `openapi-no-error-codes`        | note             | OpenAPI exposes no static error codes to compare. |
 
 ## Runtime monitoring
 
@@ -288,23 +310,23 @@ try {
 
 The runtime SDK records exception name/message/stack, machine code/status when available, handled state, mechanism, environment, service, tags, and trace correlation. Transport failures are isolated from application behavior.
 
+Thin `createExpressErrorMiddleware`, `createFastifyErrorHandler`, and `withErrorAtlas` adapters reduce integration work. RFC 9457 response rendering is opt-in, so capture-only adoption does not silently change framework behavior. See [adoption examples](docs/adoption.md).
+
 ## Current scope
 
-Static constant resolution currently covers TypeScript/JavaScript immutable literals in the same file and relative named/namespace imports. Factory resolution covers direct local function/arrow wrappers that return configured constructors. Control-flow labels are lexical; ErrorAtlas does not yet build a whole-program or interprocedural control-flow graph.
+Static resolution covers TypeScript/JavaScript immutable aliases, object/enum members, relative named/default/namespace imports, re-exports, and one- or two-hop factory chains. Cross-file proof is capped at two edges and factory composition at two calls. Ambiguous, dynamic, mutated, package-imported, or deeper values remain unstructured. Control-flow labels are lexical; ErrorAtlas does not claim a whole-program CFG. Exact boundaries are in [architecture](docs/architecture.md).
 
 Runtime monitoring is an embeddable SDK and local/HTTP event format, not a hosted Sentry replacement: ErrorAtlas does not provide a managed dashboard, alert routing, retention, symbolication service, or distributed trace backend. The safe fixer currently adds codes only to explicit TypeScript/JavaScript API response objects; it does not rewrite exception types or imports.
 
-The repository also contains a privacy-safe [public repository audit dataset](data/README.md) generated from real projects. Raw messages, codes, file paths, and private repository metadata are excluded.
+The repository also contains a versioned, privacy-safe [public repository audit dataset](data/README.md) generated from real projects. Query aggregate metrics locally with `npm run dataset:query`. Raw messages, codes, file paths, source, and private repository metadata are excluded.
 
-## Roadmap
+## Further reading
 
-- Deeper interprocedural factory, constant, and control-flow analysis
-- Express/Fastify/Next.js runtime middleware adapters
-- OpenTelemetry bridge and hosted/self-hosted event collector
-- Pull-request annotations without separate SARIF setup
-- A read-only API for the Error Contract Benchmark dataset
-
-See [the architecture](docs/architecture.md) for design decisions and the planned benchmark data model.
+- [Architecture and confidence boundaries](docs/architecture.md)
+- [RFC 9457 mapping and migration](docs/rfc9457.md)
+- [Greenfield, baseline, OpenAPI, and runtime adoption](docs/adoption.md)
+- [Competitive positioning](docs/positioning.md)
+- [Issue-sized follow-up roadmap](docs/roadmap.md)
 
 ## Contributing
 

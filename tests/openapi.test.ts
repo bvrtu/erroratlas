@@ -89,6 +89,102 @@ components:
     );
   });
 
+  it("reads and governs application/problem+json contracts", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "erroratlas-openapi-"));
+    temporaryDirectories.push(root);
+    const filename = path.join(root, "openapi.yaml");
+    await writeFile(
+      filename,
+      `
+openapi: 3.1.0
+paths:
+  /users/{id}:
+    get:
+      responses:
+        "404":
+          content:
+            application/problem+json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    const: https://api.example.com/problems/user-not-found
+                  title:
+                    const: User not found
+                  detail:
+                    example: No user exists for this identifier
+                  code:
+                    const: USER_NOT_FOUND
+`,
+    );
+
+    const contract = await readOpenApiContract(filename);
+    expect(contract).toEqual([
+      {
+        code: "USER_NOT_FOUND",
+        status: 404,
+        operation: "GET /users/{id}",
+        mediaType: "application/problem+json",
+        problem: {
+          type: "https://api.example.com/problems/user-not-found",
+          title: "User not found",
+          detail: "No user exists for this identifier",
+        },
+      },
+    ]);
+
+    const catalog: ErrorCatalog = {
+      schemaVersion: 2,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      errors: [
+        {
+          ...entry("USER_NOT_FOUND", 404),
+          problem: {
+            type: "https://api.example.com/problems/different",
+            title: "User not found",
+            detail: "No user exists for this identifier",
+            instance: null,
+            extensions: {},
+          },
+        },
+      ],
+    };
+    expect(compareCatalogWithOpenApi(catalog, contract)).toEqual([
+      expect.objectContaining({ ruleId: "openapi-problem-details-drift" }),
+    ]);
+  });
+
+  it("requires problem+json when source exposes proven problem details", () => {
+    const catalog: ErrorCatalog = {
+      schemaVersion: 2,
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      errors: [
+        {
+          ...entry("USER_NOT_FOUND", 404),
+          problem: {
+            type: "https://api.example.com/problems/user-not-found",
+            title: "User not found",
+            detail: "No user",
+            instance: null,
+            extensions: {},
+          },
+        },
+      ],
+    };
+    expect(
+      compareCatalogWithOpenApi(catalog, [
+        {
+          code: "USER_NOT_FOUND",
+          status: 404,
+          operation: "GET /users/{id}",
+          mediaType: "application/json",
+        },
+      ]),
+    ).toEqual([
+      expect.objectContaining({ ruleId: "openapi-problem-media-type" }),
+    ]);
+  });
+
   it("explains when a document has no machine-readable error codes", () => {
     expect(
       compareCatalogWithOpenApi(

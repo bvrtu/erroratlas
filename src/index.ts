@@ -14,6 +14,16 @@ export {
 export { analyzeDetections, scanProject } from "./scanner.js";
 export { compareCatalogWithOpenApi, readOpenApiContract } from "./openapi.js";
 export {
+  buildBaseline,
+  diagnosticFingerprint,
+  filterBaselineDiagnostics,
+  readBaseline,
+} from "./baseline.js";
+export { createExpressErrorMiddleware } from "./adapters/express.js";
+export { createFastifyErrorHandler } from "./adapters/fastify.js";
+export { withErrorAtlas } from "./adapters/next.js";
+export { problemFromError } from "./adapters/shared.js";
+export {
   createRuntimeMonitor,
   HttpRuntimeTransport,
   JsonlRuntimeTransport,

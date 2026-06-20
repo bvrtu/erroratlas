@@ -50,6 +50,7 @@ export function buildCatalog(
         status: first?.status ?? null,
         description: existing?.description ?? "",
         resolution: existing?.resolution ?? "",
+        ...(first?.problem ? { problem: first.problem } : {}),
         occurrences: definitions.map((item) => ({
           ...item.location,
           language: item.language,
@@ -61,7 +62,7 @@ export function buildCatalog(
     .sort((left, right) => left.code.localeCompare(right.code));
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt,
     errors: entries,
   };
@@ -133,6 +134,18 @@ export function compareWithCatalog(
         location,
       });
     }
+    if (
+      catalog.schemaVersion >= 2 &&
+      canonicalProblem(source.problem) !== canonicalProblem(documented.problem)
+    ) {
+      diagnostics.push({
+        ruleId: "problem-details-drift",
+        severity: "error",
+        message: `${code} RFC 9457 problem details differ between source and catalog.`,
+        code,
+        location,
+      });
+    }
     if (!documented.resolution.trim()) {
       diagnostics.push({
         ruleId: "missing-resolution",
@@ -159,7 +172,7 @@ export function compareWithCatalog(
 }
 
 function validateCatalog(value: ErrorCatalog, filename: string): void {
-  if (value.schemaVersion !== 1 || !Array.isArray(value.errors)) {
+  if (![1, 2].includes(value.schemaVersion) || !Array.isArray(value.errors)) {
     throw new Error(`${filename} is not a valid ErrorAtlas catalog.`);
   }
   const codes = new Set<string>();
@@ -171,6 +184,21 @@ function validateCatalog(value: ErrorCatalog, filename: string): void {
     }
     codes.add(entry.code);
   }
+}
+
+function canonicalProblem(value: CatalogEntry["problem"]): string {
+  if (!value) return "";
+  return JSON.stringify({
+    type: value.type,
+    title: value.title,
+    detail: value.detail,
+    instance: value.instance,
+    extensions: Object.fromEntries(
+      Object.entries(value.extensions).sort(([left], [right]) =>
+        left.localeCompare(right),
+      ),
+    ),
+  });
 }
 
 function quote(value: string | null): string {

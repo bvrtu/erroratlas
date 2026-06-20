@@ -1,12 +1,16 @@
 import { readFile } from "node:fs/promises";
 import { parse as parseYaml } from "yaml";
 import { compareDiagnostics } from "./scanner.js";
-import type { Diagnostic, ErrorCatalog } from "./types.js";
+import type { Diagnostic, ErrorCatalog, ProblemDetails } from "./types.js";
 
 export interface OpenApiErrorContract {
   code: string;
   status: number | null;
   operation: string;
+  mediaType?: string;
+  problem?: Partial<
+    Pick<ProblemDetails, "type" | "title" | "detail" | "instance">
+  >;
 }
 
 export async function readOpenApiContract(
@@ -45,14 +49,30 @@ export async function readOpenApiContract(
       for (const [statusKey, responseValue] of Object.entries(responses)) {
         if (!isErrorStatus(statusKey)) continue;
         const response = resolveValue(responseValue, document);
-        const codes = collectCodes(response, document);
         const status = /^\d{3}$/.test(statusKey) ? Number(statusKey) : null;
-        for (const code of codes) {
-          contracts.push({
-            code,
-            status,
-            operation: `${method.toUpperCase()} ${route}`,
-          });
+        const operationName = `${method.toUpperCase()} ${route}`;
+        const content = isRecord(response)
+          ? resolveObject(response.content, document)
+          : null;
+        if (content) {
+          for (const [mediaType, mediaValue] of Object.entries(content)) {
+            const problem = collectProblemShape(mediaValue, document);
+            for (const code of collectCodes(mediaValue, document)) {
+              contracts.push({
+                code,
+                status,
+                operation: operationName,
+                ...(isProblemMediaType(mediaType) || problem
+                  ? { mediaType }
+                  : {}),
+                ...(problem ? { problem } : {}),
+              });
+            }
+          }
+        } else {
+          for (const code of collectCodes(response, document)) {
+            contracts.push({ code, status, operation: operationName });
+          }
         }
       }
     }
@@ -120,6 +140,47 @@ export function compareCatalogWithOpenApi(
         location,
       });
     }
+    if (
+      source.problem &&
+      !documented.some((entry) =>
+        entry.mediaType ? isProblemMediaType(entry.mediaType) : false,
+      )
+    ) {
+      diagnostics.push({
+        ruleId: "openapi-problem-media-type",
+        severity: "error",
+        message: `${code} is an RFC 9457 problem in source but OpenAPI does not expose it as application/problem+json.`,
+        code,
+        location,
+      });
+    }
+    if (source.problem) {
+      const conflictingFields = (
+        ["type", "title", "detail", "instance"] as const
+      ).filter((field) => {
+        const sourceValue = source.problem?.[field];
+        const documentedValues = new Set(
+          documented
+            .map((entry) => entry.problem?.[field])
+            .filter((value): value is string => typeof value === "string"),
+        );
+        return (
+          sourceValue !== null &&
+          sourceValue !== undefined &&
+          documentedValues.size > 0 &&
+          !documentedValues.has(sourceValue)
+        );
+      });
+      if (conflictingFields.length) {
+        diagnostics.push({
+          ruleId: "openapi-problem-details-drift",
+          severity: "error",
+          message: `${code} has RFC 9457 drift in: ${conflictingFields.join(", ")}.`,
+          code,
+          location,
+        });
+      }
+    }
   }
 
   for (const [code, entries] of contractByCode) {
@@ -134,6 +195,79 @@ export function compareCatalogWithOpenApi(
   }
 
   return diagnostics.sort(compareDiagnostics);
+}
+
+function collectProblemShape(
+  value: unknown,
+  document: Record<string, unknown>,
+): OpenApiErrorContract["problem"] | undefined {
+  const candidates = new Map<
+    "type" | "title" | "detail" | "instance",
+    Set<string>
+  >(
+    (["type", "title", "detail", "instance"] as const).map((field) => [
+      field,
+      new Set<string>(),
+    ]),
+  );
+  const visited = new Set<unknown>();
+
+  function add(
+    field: "type" | "title" | "detail" | "instance",
+    input: unknown,
+  ): void {
+    const resolved = resolveValue(input, document);
+    if (typeof resolved === "string") {
+      candidates.get(field)?.add(resolved);
+      return;
+    }
+    if (!isRecord(resolved)) return;
+    for (const candidate of [
+      resolved.const,
+      resolved.example,
+      resolved.default,
+    ]) {
+      if (typeof candidate === "string") candidates.get(field)?.add(candidate);
+    }
+    if (Array.isArray(resolved.enum) && resolved.enum.length === 1) {
+      const candidate = resolved.enum[0];
+      if (typeof candidate === "string") candidates.get(field)?.add(candidate);
+    }
+  }
+
+  function visit(input: unknown, depth = 0): void {
+    if (depth > 30) return;
+    const resolved = resolveValue(input, document);
+    if (Array.isArray(resolved)) {
+      for (const item of resolved) visit(item, depth + 1);
+      return;
+    }
+    if (!isRecord(resolved) || visited.has(resolved)) return;
+    visited.add(resolved);
+    const properties = resolveObject(resolved.properties, document);
+    if (properties) {
+      for (const field of ["type", "title", "detail", "instance"] as const) {
+        if (field in properties) add(field, properties[field]);
+      }
+    }
+    const looksLikeExample = ["title", "detail", "instance"].some(
+      (field) => field in resolved,
+    );
+    if (looksLikeExample) {
+      for (const field of ["type", "title", "detail", "instance"] as const) {
+        if (field in resolved) add(field, resolved[field]);
+      }
+    }
+    for (const child of Object.values(resolved)) visit(child, depth + 1);
+  }
+
+  visit(value);
+  const problem: OpenApiErrorContract["problem"] = {};
+  for (const [field, values] of candidates) {
+    const [only] = values;
+    if (values.size === 1 && only !== undefined) problem[field] = only;
+  }
+  return Object.keys(problem).length ? problem : undefined;
 }
 
 function collectCodes(
@@ -209,13 +343,23 @@ function deduplicateContracts(
 ): OpenApiErrorContract[] {
   const unique = new Map<string, OpenApiErrorContract>();
   for (const entry of contracts) {
-    unique.set(`${entry.code}\0${entry.status}\0${entry.operation}`, entry);
+    unique.set(
+      `${entry.code}\0${entry.status}\0${entry.operation}\0${entry.mediaType ?? ""}\0${JSON.stringify(entry.problem ?? {})}`,
+      entry,
+    );
   }
   return [...unique.values()].sort(
     (left, right) =>
       left.code.localeCompare(right.code) ||
       (left.status ?? 0) - (right.status ?? 0) ||
       left.operation.localeCompare(right.operation),
+  );
+}
+
+function isProblemMediaType(mediaType: string): boolean {
+  return (
+    mediaType.split(";", 1)[0]?.trim().toLowerCase() ===
+    "application/problem+json"
   );
 }
 

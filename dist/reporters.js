@@ -29,6 +29,15 @@ export function renderMarkdown(catalog) {
         lines.push(`## \`${escapeMarkdown(error.code)}\``, "");
         lines.push(`- **HTTP status:** ${error.status ?? "—"}`);
         lines.push(`- **Message:** ${error.message ? `\`${escapeMarkdown(error.message)}\`` : "—"}`);
+        if (error.problem) {
+            lines.push(`- **Problem type:** ${error.problem.type ? `\`${escapeMarkdown(error.problem.type)}\`` : "—"}`, `- **Problem title:** ${error.problem.title ? `\`${escapeMarkdown(error.problem.title)}\`` : "—"}`, `- **Problem detail:** ${error.problem.detail ? `\`${escapeMarkdown(error.problem.detail)}\`` : "—"}`, `- **Problem instance:** ${error.problem.instance ? `\`${escapeMarkdown(error.problem.instance)}\`` : "—"}`);
+            const extensions = Object.entries(error.problem.extensions);
+            if (extensions.length) {
+                lines.push(`- **Problem extensions:** ${extensions
+                    .map(([key, value]) => `\`${escapeMarkdown(key)}=${escapeMarkdown(String(value))}\``)
+                    .join(", ")}`);
+            }
+        }
         if ((error.observedMessages?.length ?? 0) > 1) {
             lines.push("- **Observed messages:**");
             for (const message of error.observedMessages ?? []) {

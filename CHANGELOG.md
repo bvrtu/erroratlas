@@ -4,6 +4,22 @@ All notable changes to this project will be documented here. The format follows 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-20
+
+### Added
+
+- Bounded two-hop TypeScript/JavaScript resolution for re-exports, default imports, aliases, enum/object members, namespace imports, and factory chains.
+- Migration-safe catalog schema v2 with RFC 9457 problem details and `application/problem+json` OpenAPI governance.
+- Baseline files, net-new-only checks, and changed-file scanning with bounded reverse-import traversal.
+- Catalog-aware source fixes with prefix policy, collision blocking, and dry-run rationale.
+- Thin Express, Fastify, and Next.js runtime adapters with optional RFC 9457 responses.
+- A versioned benchmark metric schema and privacy-safe local JSON query command.
+
+### Changed
+
+- Generated catalogs now use schema v2; schema v1 catalogs remain readable and retain authored descriptions and resolutions during regeneration.
+- Unresolved thrown factory calls are reported as unstructured instead of silently omitted.
+
 ## [0.3.0] - 2026-06-20
 
 ### Added

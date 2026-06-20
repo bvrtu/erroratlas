@@ -1,6 +1,6 @@
 import { Lang, parse } from "@ast-grep/napi";
 import { detectedFromArguments, detectedFromArgumentTexts, inferErrorFlow, propertyStaticNumber, propertyStaticString, staticNumber, staticString, toLocation, } from "./shared.js";
-import { collectLocalTypeScriptValues, } from "./typescript-symbols.js";
+import { collectLocalTypeScriptFactories, collectLocalTypeScriptValues, } from "./typescript-symbols.js";
 export function extractTypeScriptErrors(input) {
     const language = /\.[jt]sx$/.test(input.filename)
         ? Lang.Tsx
@@ -54,27 +54,10 @@ export function extractTypeScriptErrors(input) {
     return errors;
 }
 function extractFactoryThrows(input, tree, values) {
-    const constructors = new Map(input.constructors.map((spec) => [spec.name, spec]));
-    const factories = new Map();
-    for (const pattern of [
-        "function $FACTORY($$$PARAMS) { return new $CTOR($$$ARGS); }",
-        "const $FACTORY = ($$$PARAMS) => new $CTOR($$$ARGS)",
-    ]) {
-        for (const node of tree.findAll({ rule: { pattern } })) {
-            const name = node.getMatch("FACTORY")?.text();
-            const constructor = node.getMatch("CTOR")?.text();
-            const spec = constructor ? constructors.get(constructor) : undefined;
-            if (!name || !spec)
-                continue;
-            factories.set(name, {
-                name,
-                parameters: namedMatches(node, "PARAMS").map((item) => item.text()),
-                arguments: namedMatches(node, "ARGS").map((item) => item.text()),
-                spec,
-            });
-        }
-    }
+    const factories = input.factories ??
+        collectLocalTypeScriptFactories(input.filename, tree.text(), input.constructors);
     const errors = [];
+    const resolvedNodes = new Set();
     for (const node of tree.findAll({
         rule: { pattern: "throw $FACTORY($$$ARGS)" },
     })) {
@@ -82,6 +65,7 @@ function extractFactoryThrows(input, tree, values) {
         const factory = name ? factories.get(name) : undefined;
         if (!factory)
             continue;
+        resolvedNodes.add(node.id());
         const callArguments = namedMatches(node, "ARGS").map((item) => item.text());
         const scopedValues = new Map(values);
         factory.parameters.forEach((parameter, index) => {
@@ -102,6 +86,26 @@ function extractFactoryThrows(input, tree, values) {
             values: scopedValues,
             constructorName: `${factory.name}()`,
         }));
+    }
+    for (const node of tree.findAll({
+        rule: { pattern: "throw $FACTORY($$$ARGS)" },
+    })) {
+        if (resolvedNodes.has(node.id()))
+            continue;
+        const name = node.getMatch("FACTORY")?.text();
+        if (!name || name === "new")
+            continue;
+        errors.push({
+            code: null,
+            message: null,
+            status: null,
+            constructor: `${name}()`,
+            language: "typescript",
+            structured: false,
+            allowMessageVariants: false,
+            flow: inferErrorFlow(node),
+            location: toLocation(input.root, input.filename, node),
+        });
     }
     return errors;
 }
@@ -193,9 +197,62 @@ function responseDetection(input) {
         language: "typescript",
         structured: code !== null,
         allowMessageVariants: false,
+        ...problemDetails(input.body, input.values),
         flow: "returned",
         location: toLocation(input.root, input.filename, input.node),
     };
+}
+function problemDetails(body, values) {
+    const type = propertyStaticString(body, ["type"], values);
+    const title = propertyStaticString(body, ["title"], values);
+    const detail = propertyStaticString(body, ["detail"], values);
+    const instance = propertyStaticString(body, ["instance"], values);
+    if ([type, title, detail, instance].every((value) => value === null))
+        return {};
+    const extensions = {};
+    const tree = parse(Lang.TypeScript, `const problem = ${body};`).root();
+    const object = tree.find({ rule: { kind: "object" } });
+    const reserved = new Set([
+        "type",
+        "title",
+        "status",
+        "detail",
+        "instance",
+        "code",
+        "errorCode",
+        "error_code",
+        "message",
+    ]);
+    for (const pair of object
+        ?.children()
+        .filter((child) => child.kind() === "pair") ?? []) {
+        const key = pair
+            .field("key")
+            ?.text()
+            .replace(/^["']|["']$/g, "");
+        const valueText = pair.field("value")?.text();
+        if (!key || reserved.has(key) || valueText === undefined)
+            continue;
+        const value = staticProblemValue(valueText, values);
+        if (value !== undefined)
+            extensions[key] = value;
+    }
+    return {
+        problem: { type, title, detail, instance, extensions },
+    };
+}
+function staticProblemValue(text, values) {
+    const value = resolveValue(text, values);
+    if (value !== null)
+        return value;
+    const normalized = text.trim();
+    if (normalized === "true")
+        return true;
+    if (normalized === "false")
+        return false;
+    if (normalized === "null")
+        return null;
+    return undefined;
 }
 function namedMatches(node, name) {
     return node.getMultipleMatches(name).filter((item) => item.isNamed());

@@ -82,6 +82,35 @@ paths:
     "catalog drift should report message-drift",
   );
 
+  await run("baseline", root, "--output", ".erroratlas/baseline.json");
+  const baselineCheck = await run(
+    "check",
+    root,
+    "--baseline",
+    ".erroratlas/baseline.json",
+    "--format",
+    "json",
+  );
+  assert(
+    JSON.parse(baselineCheck.stdout).diagnostics.length === 0,
+    "baseline check should show only net-new diagnostics",
+  );
+  await writeFile(path.join(root, "changed-files.txt"), "src/service.ts\n");
+  const incremental = await run(
+    "check",
+    root,
+    "--baseline",
+    ".erroratlas/baseline.json",
+    "--changed-files",
+    "changed-files.txt",
+    "--format",
+    "json",
+  );
+  assert(
+    JSON.parse(incremental.stdout).filesScanned === 1,
+    "incremental check should scan the changed file set",
+  );
+
   await writeFile(
     path.join(root, "src", "response.ts"),
     'res.status(404).json({ error: "User was not found" });\n',
@@ -140,7 +169,7 @@ paths:
   );
 
   process.stdout.write(
-    "CLI smoke test passed: catalog, OpenAPI, fixes, enrichment, and runtime reporting.\n",
+    "CLI smoke test passed: catalog, OpenAPI, baseline/incremental checks, fixes, enrichment, and runtime reporting.\n",
   );
 } finally {
   await rm(root, { recursive: true, force: true });
