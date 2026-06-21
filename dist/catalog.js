@@ -70,12 +70,14 @@ export function compareWithCatalog(scan, catalog) {
     for (const [code, source] of sourceByCode) {
         const documented = catalogByCode.get(code);
         const location = source.occurrences[0] ?? null;
+        const evidence = source.occurrences[0]?.evidence;
         if (!documented) {
             diagnostics.push({
                 ruleId: "undocumented-error",
                 severity: "error",
                 message: `${code} exists in source but is missing from the catalog.`,
                 code,
+                ...(evidence ? { evidence } : {}),
                 location,
             });
             continue;
@@ -89,6 +91,7 @@ export function compareWithCatalog(scan, catalog) {
                 severity: "error",
                 message: `${code} message changed from ${quote(documented.message)} to ${quote(source.message)}.`,
                 code,
+                ...(evidence ? { evidence } : {}),
                 location,
             });
         }
@@ -98,6 +101,7 @@ export function compareWithCatalog(scan, catalog) {
                 severity: "error",
                 message: `${code} status changed from ${documented.status ?? "none"} to ${source.status ?? "none"}.`,
                 code,
+                ...(evidence ? { evidence } : {}),
                 location,
             });
         }
@@ -108,6 +112,7 @@ export function compareWithCatalog(scan, catalog) {
                 severity: "error",
                 message: `${code} RFC 9457 problem details differ between source and catalog.`,
                 code,
+                ...(evidence ? { evidence } : {}),
                 location,
             });
         }
@@ -117,6 +122,7 @@ export function compareWithCatalog(scan, catalog) {
                 severity: "note",
                 message: `${code} has no documented resolution.`,
                 code,
+                ...(evidence ? { evidence } : {}),
                 location,
             });
         }
@@ -129,6 +135,9 @@ export function compareWithCatalog(scan, catalog) {
             severity: "warning",
             message: `${code} is cataloged but no longer exists in source.`,
             code,
+            ...(documented.occurrences[0]?.evidence
+                ? { evidence: documented.occurrences[0].evidence }
+                : {}),
             location: documented.occurrences[0] ?? null,
         });
     }

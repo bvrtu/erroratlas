@@ -143,6 +143,7 @@ export interface Diagnostic {
   severity: Severity;
   message: string;
   code: string | null;
+  evidence?: DetectionEvidence;
   location: SourceLocation | null;
 }
 

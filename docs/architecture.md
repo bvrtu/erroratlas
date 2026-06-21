@@ -49,7 +49,7 @@ Incremental scanning extracts only changed files and reverse importers up to the
 
 The normalized definition contains code, message, status, constructor, language, flow, location, and optional RFC 9457 problem details. Source owns machine facts. The committed catalog owns human-authored `description` and `resolution`. Regeneration preserves those fields.
 
-Every scanner-produced occurrence includes an `evidence` object. `confidence` is `proven` when a static identity was established and `partial` when only the error occurrence was proven. Ordered steps describe syntax, literal, alias/member, import/re-export, and factory proof without storing source text or literal values. Evidence is included in JSON scan output and catalog occurrences but omitted from human Markdown.
+Every scanner-produced occurrence includes an `evidence` object. `confidence` is `proven` when a static identity was established and `partial` when only the error occurrence was proven. Ordered steps describe syntax, literal, alias/member, import/re-export, and factory proof without storing source text or literal values. JSON and catalog output retain the full structured chain; Markdown renders a compact proof line; SARIF stores confidence and steps in result properties.
 
 Catalog schema v2 adds optional `problem` and occurrence `evidence` data. Readers accept v1 and v2, and evidence remains optional for existing v2 files. A v1 catalog is not failed for missing problem fields; the next `generate` migrates it to v2 while preserving authored text.
 
@@ -65,4 +65,4 @@ Baselines store diagnostic fingerprints without source text. Matching is count-a
 
 Runtime collection is opt-in. JSONL remains local; HTTP transport uses only a caller-provided endpoint. Adapters capture exceptions and correlate deliveries, but do not provide storage, dashboards, alerting, tracing, or symbolication.
 
-Benchmark publication accepts derived public-repository aggregates only. The sanitizer rejects non-public rows and raw scan payloads. Published data excludes source, paths, messages, codes, and private metadata.
+Benchmark publication accepts derived public-repository aggregates only. External targets are explicitly allow-listed, pinned to full commits, and tied to a recorded SPDX identifier plus a SHA-256 hash of the license file. The hash proves that reproduction used the reviewed license artifact; it does not perform legal license interpretation. The generator scans temporary checkouts, then discards them. Published data excludes source, paths, messages, identities, raw findings, stack traces, and private metadata. JSON Schema, forbidden-field checks, and independently recomputed totals run in CI.

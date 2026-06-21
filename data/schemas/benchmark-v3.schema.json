@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bvrtu/erroratlas/raw/main/data/schemas/benchmark-v3.schema.json",
+  "title": "ErrorAtlas external benchmark dataset v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "datasetVersion",
+    "generatedAt",
+    "tool",
+    "license",
+    "privacy",
+    "summary",
+    "repositories"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 3 },
+    "datasetVersion": {
+      "type": "string",
+      "pattern": "^\\d{4}\\.\\d{2}\\.\\d{2}\\.\\d+$"
+    },
+    "generatedAt": { "$ref": "#/$defs/dateTime" },
+    "tool": { "$ref": "#/$defs/tool" },
+    "license": { "const": "CC-BY-4.0" },
+    "privacy": { "$ref": "#/$defs/privacy" },
+    "summary": { "$ref": "#/$defs/summary" },
+    "repositories": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/repository" }
+    }
+  },
+  "$defs": {
+    "dateTime": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+    },
+    "ratio": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "nullableCount": { "type": ["integer", "null"], "minimum": 0 },
+    "countMap": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "erroratlas" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "excluded"],
+      "properties": {
+        "scope": {
+          "const": "allow-listed public repositories; aggregates only"
+        },
+        "excluded": {
+          "type": "array",
+          "minItems": 7,
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "licenseEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spdxId", "url", "sha256"],
+      "properties": {
+        "spdxId": { "enum": ["MIT", "Apache-2.0", "BSD-3-Clause"] },
+        "url": { "type": "string", "pattern": "^https://github\\.com/" },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "filesScanned",
+        "structuredOccurrences",
+        "unstructuredOccurrences",
+        "structuredRatio",
+        "codeDensity",
+        "uniqueStructuredIdentities",
+        "documentedStructuredIdentities",
+        "documentationCoverage",
+        "openapiDriftCount",
+        "problemDetailsCoverage",
+        "problemDetailsOccurrences",
+        "baselineDebtCount",
+        "netNewDriftCount",
+        "confidenceDistribution",
+        "languages",
+        "statusFamilies",
+        "limitations"
+      ],
+      "properties": {
+        "filesScanned": { "type": "integer", "minimum": 0 },
+        "structuredOccurrences": { "type": "integer", "minimum": 0 },
+        "unstructuredOccurrences": { "type": "integer", "minimum": 0 },
+        "structuredRatio": { "$ref": "#/$defs/ratio" },
+        "codeDensity": { "type": ["number", "null"], "minimum": 0 },
+        "uniqueStructuredIdentities": { "type": "integer", "minimum": 0 },
+        "documentedStructuredIdentities": { "type": "integer", "minimum": 0 },
+        "documentationCoverage": { "$ref": "#/$defs/ratio" },
+        "openapiDriftCount": { "$ref": "#/$defs/nullableCount" },
+        "problemDetailsCoverage": { "$ref": "#/$defs/ratio" },
+        "problemDetailsOccurrences": { "type": "integer", "minimum": 0 },
+        "baselineDebtCount": { "$ref": "#/$defs/nullableCount" },
+        "netNewDriftCount": { "$ref": "#/$defs/nullableCount" },
+        "confidenceDistribution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["proven", "partial"],
+          "properties": {
+            "proven": { "type": "integer", "minimum": 0 },
+            "partial": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "languages": { "$ref": "#/$defs/countMap" },
+        "statusFamilies": { "$ref": "#/$defs/countMap" },
+        "limitations": { "$ref": "#/$defs/countMap" }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "url",
+        "commit",
+        "category",
+        "scannedAt",
+        "licenseEvidence",
+        "metrics"
+      ],
+      "properties": {
+        "repository": { "type": "string", "pattern": "^[^/]+/[^/]+$" },
+        "url": { "type": "string", "pattern": "^https://github\\.com/" },
+        "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "category": {
+          "enum": [
+            "typescript-node-api",
+            "python-api",
+            "java-spring",
+            "go-http",
+            "csharp-aspnet",
+            "kotlin-server"
+          ]
+        },
+        "scannedAt": { "$ref": "#/$defs/dateTime" },
+        "licenseEvidence": { "$ref": "#/$defs/licenseEvidence" },
+        "metrics": { "$ref": "#/$defs/metrics" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repositories",
+        "filesScanned",
+        "structuredOccurrences",
+        "unstructuredOccurrences",
+        "structuredRatio",
+        "codeDensity",
+        "uniqueStructuredIdentities",
+        "documentedStructuredIdentities",
+        "documentationCoverage",
+        "openapiDriftCount",
+        "problemDetailsCoverage",
+        "problemDetailsOccurrences",
+        "baselineDebtCount",
+        "netNewDriftCount",
+        "confidenceDistribution",
+        "categories",
+        "statusFamilies",
+        "limitations"
+      ],
+      "properties": {
+        "repositories": { "type": "integer", "minimum": 1 },
+        "filesScanned": { "type": "integer", "minimum": 0 },
+        "structuredOccurrences": { "type": "integer", "minimum": 0 },
+        "unstructuredOccurrences": { "type": "integer", "minimum": 0 },
+        "structuredRatio": { "$ref": "#/$defs/ratio" },
+        "codeDensity": { "type": ["number", "null"], "minimum": 0 },
+        "uniqueStructuredIdentities": { "type": "integer", "minimum": 0 },
+        "documentedStructuredIdentities": { "type": "integer", "minimum": 0 },
+        "documentationCoverage": { "$ref": "#/$defs/ratio" },
+        "openapiDriftCount": { "$ref": "#/$defs/nullableCount" },
+        "problemDetailsCoverage": { "$ref": "#/$defs/ratio" },
+        "problemDetailsOccurrences": { "type": "integer", "minimum": 0 },
+        "baselineDebtCount": { "$ref": "#/$defs/nullableCount" },
+        "netNewDriftCount": { "$ref": "#/$defs/nullableCount" },
+        "confidenceDistribution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["proven", "partial"],
+          "properties": {
+            "proven": { "type": "integer", "minimum": 0 },
+            "partial": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "categories": { "$ref": "#/$defs/countMap" },
+        "statusFamilies": { "$ref": "#/$defs/countMap" },
+        "limitations": { "$ref": "#/$defs/countMap" }
+      }
+    }
+  }
+}

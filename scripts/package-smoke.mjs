@@ -12,6 +12,7 @@ const { version: packageVersion } = JSON.parse(
 const root = await mkdtemp(path.join(tmpdir(), "erroratlas-package-"));
 const packDir = path.join(root, "pack");
 const consumerDir = path.join(root, "consumer");
+const npmCache = path.join(root, "npm-cache");
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 
 try {
@@ -111,7 +112,11 @@ function run(command, args, cwd) {
   return exec(command, args, {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, npm_config_dry_run: "false" },
+    env: {
+      ...process.env,
+      npm_config_cache: npmCache,
+      npm_config_dry_run: "false",
+    },
   });
 }
 

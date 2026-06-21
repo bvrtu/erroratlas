@@ -16,6 +16,13 @@ const error: DetectedError = {
   language: "typescript",
   structured: true,
   allowMessageVariants: false,
+  evidence: {
+    confidence: "proven",
+    steps: [
+      { kind: "syntax", file: "src/users.ts", symbol: "AppError" },
+      { kind: "literal", file: "src/users.ts", symbol: "USER_NOT_FOUND" },
+    ],
+  },
   location: {
     file: "src/users.ts",
     line: 8,
@@ -30,6 +37,7 @@ const diagnostic: Diagnostic = {
   severity: "error",
   message: "USER_NOT_FOUND exists in source but is missing from the catalog.",
   code: "USER_NOT_FOUND",
+  evidence: error.evidence!,
   location: error.location,
 };
 
@@ -54,15 +62,31 @@ describe("reporters", () => {
     expect(output).toContain("## `USER_NOT_FOUND`");
     expect(output).toContain("**HTTP status:** 404");
     expect(output).toContain("`src/users.ts:8`");
+    expect(output).toContain("proof: **proven** via `syntax` → `literal`");
   });
 
   it("renders valid SARIF locations", () => {
     const output = JSON.parse(renderSarif([diagnostic])) as {
       version: string;
-      runs: Array<{ results: Array<{ locations: unknown[] }> }>;
+      runs: Array<{
+        results: Array<{
+          locations: unknown[];
+          properties: {
+            erroratlasConfidence: string;
+            erroratlasEvidence: unknown[];
+          };
+        }>;
+      }>;
     };
     expect(output.version).toBe("2.1.0");
     expect(output.runs[0]?.results[0]?.locations).toHaveLength(1);
+    expect(output.runs[0]?.results[0]?.properties).toMatchObject({
+      erroratlasConfidence: "proven",
+      erroratlasEvidence: [
+        expect.objectContaining({ kind: "syntax", file: "src/users.ts" }),
+        expect.objectContaining({ kind: "literal", file: "src/users.ts" }),
+      ],
+    });
   });
 
   it("applies error and warning failure thresholds", () => {

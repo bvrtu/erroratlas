@@ -1,0 +1,14 @@
+{
+  "include": ["src/**/*.{ts,tsx,js,jsx,py,java,dart,swift,go,cs,kt,kts}"],
+  "exclude": [],
+  "constructors": {
+    "swift": [
+      {
+        "name": "APIError.failure",
+        "codeArgument": 0,
+        "messageArgument": 1,
+        "statusArgument": 2
+      }
+    ]
+  }
+}

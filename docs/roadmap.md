@@ -1,30 +1,31 @@
 # Follow-up roadmap
 
-These are release-sized, issue-ready tasks rather than open-ended TODOs.
+Each item is sized to become one focused issue or pull request. Milestones describe intent, not promises of hosted services.
 
-## 0.5 — extraction confidence
+## Next patch — consistency, documentation, and bug fixes
 
-Implemented: opt-in root-confined TypeScript paths/workspaces, immutable destructuring, object/default factory composition with a three-wrapper bound, and occurrence evidence chains.
+1. Add a release script that compares the npm tarball, GitHub Action bundle, changelog section, and annotated tag before maintainers publish.
+2. Add paired `2xx`/`3xx`/`4xx` response fixtures for every supported TypeScript response style and preserve the “proven success is not an error” invariant.
+3. Add generated-document snapshot checks that prove human catalog prose survives repeated `generate` and schema migration passes.
+4. Document a benchmark target review checklist covering license changes, repository deletion, and commit replacement.
 
-The remaining issue before broad 1.0 confidence claims is to build a file-based fixture corpus for all nine supported languages, with framework-version labels and paired negative/noise cases for every extractor profile.
+## Next minor — benchmark and fixture maturity
 
-## Milestone 0.6 — adapters and runtime correlation
+1. Expand each language corpus with two real framework-version profiles and one negative/noise fixture; record framework and parser versions in the manifest.
+2. Add opt-in benchmark profiles for committed OpenAPI, catalog, and baseline files so those metrics are populated only when artifacts genuinely exist.
+3. Add dataset-to-dataset trend comparison keyed by immutable target/commit coordinates; never retain removed raw findings.
+4. Publish immutable JSON and generated summary pages through GitHub Pages, with CI deploying only schema/privacy-validated artifacts.
 
-1. Package a FastAPI integration as a small Python companion with ASGI exception middleware, trace-ID extraction, redaction hooks, and contract tests against the runtime event schema.
-2. Add Express/Fastify response-finish hooks that mark delivery without taking ownership of response rendering.
-3. Add an OpenTelemetry bridge mapping trace/span IDs into ErrorAtlas events; no collector or storage coupling.
-4. Add adapter integration matrices against supported framework majors.
+## Following minor — adapters, runtime, and OpenTelemetry
 
-## Milestone 0.7 — benchmark product
+1. Package a FastAPI companion with ASGI exception capture, trace-ID extraction, redaction hooks, and contract tests against runtime schema v1.
+2. Add Express and Fastify response-finish helpers that correlate delivery without taking ownership of application rendering.
+3. Add an OpenTelemetry bridge that maps trace/span IDs into ErrorAtlas runtime events without bundling a collector or backend.
+4. Test Express, Fastify, Next.js, and FastAPI adapters against declared framework-major matrices and publish exact compatibility tables.
 
-1. Publish a JSON Schema for dataset v2 and validate every release in CI.
-2. Add dataset snapshots from explicitly allow-listed public repositories and record license provenance.
-3. Publish the static aggregate query output on GitHub Pages with immutable dataset-version URLs.
-4. Add trend deltas across dataset versions without retaining deleted raw metadata.
+## 1.0 — stability and enterprise adoption
 
-## Milestone 1.0 — governance stability
-
-1. Stabilize catalog schema v2 and runtime schema v1 with compatibility fixtures.
-2. Add signed baseline provenance and a review command that explains added/removed fingerprints.
-3. Define deprecation policy, migration-note template, and support window.
-4. Complete security/privacy review for runtime redaction and benchmark publication paths.
+1. Freeze catalog schema v2 and runtime schema v1 compatibility guarantees with golden fixtures and a documented deprecation window.
+2. Add signed baseline provenance and a review command explaining added, removed, and count-changed fingerprints.
+3. Complete a threat model and privacy review for runtime redaction, HTTP transport, benchmark publication, and third-party Action execution.
+4. Publish migration templates, support policy, governance model, and an enterprise pilot guide based on evidence from real adopters.
