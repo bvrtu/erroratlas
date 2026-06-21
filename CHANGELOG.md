@@ -4,6 +4,25 @@ All notable changes to this project will be documented here. The format follows 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-21
+
+### Added
+
+- A labeled, file-based fixture corpus spanning all nine language packs, TypeScript cross-file proof, conflict cases, bounded-analysis negatives, and response noise cases.
+- Compact proof chains in Markdown and structured confidence/evidence properties in SARIF.
+- JSON Schemas for benchmark datasets v2 and v3, aggregate consistency/privacy validation, and an allow-listed external snapshot with commit and license provenance.
+- A reproducible external benchmark generator, human-readable benchmark report, and release-consistency gate.
+
+### Changed
+
+- `prepack` now runs the complete verification pipeline; CI validates release metadata and benchmark data.
+- The benchmark query supports schema v3 and correctly accepts a dataset as its first positional argument.
+- Package smoke tests use an isolated temporary npm cache instead of depending on user-level cache ownership.
+
+### Fixed
+
+- Proven `2xx` and `3xx` API responses are no longer classified as errors solely because their payload contains a `code` field.
+
 ## [0.5.0] - 2026-06-21
 
 ### Added

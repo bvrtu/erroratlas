@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { assertPrivacySafe } from "./lib/benchmark-validation.mjs";
 
 const [inputName, outputName] = process.argv.slice(2);
 
@@ -43,28 +44,3 @@ const output = path.resolve(outputName);
 await mkdir(path.dirname(output), { recursive: true });
 await writeFile(output, `${JSON.stringify(dataset, null, 2)}\n`, "utf8");
 process.stdout.write(`Published sanitized dataset: ${output}\n`);
-
-function assertPrivacySafe(value, key = "repository") {
-  const forbidden = new Set([
-    "scan",
-    "source",
-    "message",
-    "code",
-    "file",
-    "path",
-    "location",
-    "occurrences",
-    "errors",
-  ]);
-  if (forbidden.has(key)) {
-    throw new Error(`Refusing privacy-sensitive dataset field: ${key}`);
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) assertPrivacySafe(item);
-    return;
-  }
-  if (typeof value !== "object" || value === null) return;
-  for (const [childKey, child] of Object.entries(value)) {
-    assertPrivacySafe(child, childKey);
-  }
-}

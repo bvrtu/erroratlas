@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bvrtu/erroratlas/raw/main/data/schemas/benchmark-v2.schema.json",
+  "title": "ErrorAtlas benchmark dataset v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "owner",
+    "tool",
+    "summary",
+    "repositories",
+    "license",
+    "privacy"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "generatedAt": { "$ref": "#/$defs/dateTime" },
+    "owner": { "type": "string", "minLength": 1 },
+    "tool": { "$ref": "#/$defs/tool" },
+    "summary": { "$ref": "#/$defs/summary" },
+    "repositories": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/repository" }
+    },
+    "license": { "const": "CC-BY-4.0" },
+    "privacy": { "$ref": "#/$defs/privacy" }
+  },
+  "$defs": {
+    "dateTime": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+    },
+    "nullableRatio": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "nullableNonnegative": {
+      "type": ["number", "null"],
+      "minimum": 0
+    },
+    "countMap": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "erroratlas" },
+        "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "excluded"],
+      "properties": {
+        "scope": { "const": "public repositories only" },
+        "excluded": {
+          "type": "array",
+          "minItems": 5,
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repositories",
+        "scannedRepositories",
+        "failedRepositories",
+        "filesScanned",
+        "structuredErrors",
+        "unstructuredErrors",
+        "structuredRate",
+        "codeDensity",
+        "uniqueStructuredCodes",
+        "documentedStructuredCodes",
+        "documentationCoverage",
+        "statusFamilies"
+      ],
+      "properties": {
+        "repositories": { "type": "integer", "minimum": 0 },
+        "scannedRepositories": { "type": "integer", "minimum": 0 },
+        "failedRepositories": { "type": "integer", "minimum": 0 },
+        "filesScanned": { "type": "integer", "minimum": 0 },
+        "structuredErrors": { "type": "integer", "minimum": 0 },
+        "unstructuredErrors": { "type": "integer", "minimum": 0 },
+        "structuredRate": { "$ref": "#/$defs/nullableRatio" },
+        "codeDensity": { "$ref": "#/$defs/nullableNonnegative" },
+        "uniqueStructuredCodes": { "type": "integer", "minimum": 0 },
+        "documentedStructuredCodes": { "type": "integer", "minimum": 0 },
+        "documentationCoverage": { "$ref": "#/$defs/nullableRatio" },
+        "statusFamilies": { "$ref": "#/$defs/countMap" }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "url",
+        "visibility",
+        "primaryLanguage",
+        "defaultBranch",
+        "commit",
+        "updatedAt",
+        "diskUsageKb",
+        "isFork",
+        "isArchived",
+        "status",
+        "filesScanned",
+        "structuredErrors",
+        "unstructuredErrors",
+        "structuredRate",
+        "codeDensity",
+        "uniqueStructuredCodes",
+        "documentedStructuredCodes",
+        "documentationCoverage",
+        "languages",
+        "constructors",
+        "statusCodes",
+        "statusFamilies",
+        "diagnostics"
+      ],
+      "properties": {
+        "repository": { "type": "string", "pattern": "^[^/]+/[^/]+$" },
+        "url": { "type": "string", "pattern": "^https://github\\.com/" },
+        "visibility": { "const": "PUBLIC" },
+        "primaryLanguage": { "type": ["string", "null"] },
+        "defaultBranch": { "type": "string", "minLength": 1 },
+        "commit": { "type": ["string", "null"], "pattern": "^[a-f0-9]{40}$" },
+        "updatedAt": { "$ref": "#/$defs/dateTime" },
+        "diskUsageKb": { "type": "integer", "minimum": 0 },
+        "isFork": { "type": "boolean" },
+        "isArchived": { "type": "boolean" },
+        "status": { "enum": ["scanned", "failed"] },
+        "filesScanned": { "type": "integer", "minimum": 0 },
+        "structuredErrors": { "type": "integer", "minimum": 0 },
+        "unstructuredErrors": { "type": "integer", "minimum": 0 },
+        "structuredRate": { "$ref": "#/$defs/nullableRatio" },
+        "codeDensity": { "$ref": "#/$defs/nullableNonnegative" },
+        "uniqueStructuredCodes": { "type": "integer", "minimum": 0 },
+        "documentedStructuredCodes": { "type": "integer", "minimum": 0 },
+        "documentationCoverage": { "$ref": "#/$defs/nullableRatio" },
+        "languages": { "$ref": "#/$defs/countMap" },
+        "constructors": { "$ref": "#/$defs/countMap" },
+        "statusCodes": { "$ref": "#/$defs/countMap" },
+        "statusFamilies": { "$ref": "#/$defs/countMap" },
+        "diagnostics": { "$ref": "#/$defs/countMap" }
+      }
+    }
+  }
+}

@@ -6,7 +6,8 @@ const repositoryIndex = args.indexOf("--repository");
 const repository = repositoryIndex >= 0 ? args[repositoryIndex + 1] : null;
 const positional = args.filter(
   (argument, index) =>
-    !argument.startsWith("--") && index !== repositoryIndex + 1,
+    !argument.startsWith("--") &&
+    !(repositoryIndex >= 0 && index === repositoryIndex + 1),
 );
 const filename = path.resolve(
   positional[0] ?? "data/bvrtu-public-repo-audit.json",
@@ -14,7 +15,7 @@ const filename = path.resolve(
 const dataset = JSON.parse(await readFile(filename, "utf8"));
 
 if (
-  ![1, 2].includes(dataset.schemaVersion) ||
+  ![1, 2, 3].includes(dataset.schemaVersion) ||
   !Array.isArray(dataset.repositories)
 ) {
   throw new Error(
@@ -29,17 +30,38 @@ if (repository && rows.length === 0) {
   throw new Error(`Repository not found in benchmark: ${repository}`);
 }
 
-const filesScanned = sum(rows, "filesScanned");
-const structuredErrors = sum(rows, "structuredErrors");
-const unstructuredErrors = sum(rows, "unstructuredErrors");
+const metricRows =
+  dataset.schemaVersion === 3 ? rows.map((row) => row.metrics) : rows;
+const filesScanned = sum(metricRows, "filesScanned");
+const structuredErrors = sum(
+  metricRows,
+  dataset.schemaVersion === 3 ? "structuredOccurrences" : "structuredErrors",
+);
+const unstructuredErrors = sum(
+  metricRows,
+  dataset.schemaVersion === 3
+    ? "unstructuredOccurrences"
+    : "unstructuredErrors",
+);
 const totalErrors = structuredErrors + unstructuredErrors;
-const uniqueStructuredCodes = sum(rows, "uniqueStructuredCodes");
-const documentedStructuredCodes = sum(rows, "documentedStructuredCodes");
-const statusFamilies = mergeCounts(rows, "statusFamilies", "statusCodes");
+const uniqueStructuredCodes = sum(
+  metricRows,
+  dataset.schemaVersion === 3
+    ? "uniqueStructuredIdentities"
+    : "uniqueStructuredCodes",
+);
+const documentedStructuredCodes = sum(
+  metricRows,
+  dataset.schemaVersion === 3
+    ? "documentedStructuredIdentities"
+    : "documentedStructuredCodes",
+);
+const statusFamilies = mergeCounts(metricRows, "statusFamilies", "statusCodes");
 
 const result = {
   dataset: {
     schemaVersion: dataset.schemaVersion,
+    ...(dataset.datasetVersion ? { version: dataset.datasetVersion } : {}),
     generatedAt: dataset.generatedAt,
     tool: dataset.tool,
     license: dataset.license,

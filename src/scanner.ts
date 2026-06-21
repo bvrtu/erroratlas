@@ -247,6 +247,7 @@ export function analyzeDetections(errors: DetectedError[]): Diagnostic[] {
       severity: "warning",
       message: `${item.constructor} has no static machine-readable error code.`,
       code: null,
+      ...(item.evidence ? { evidence: item.evidence } : {}),
       location: item.location,
     }));
 
@@ -268,6 +269,8 @@ export function analyzeDetections(errors: DetectedError[]): Diagnostic[] {
     const variantsAllowed = definitions.every(
       (item) => item.allowMessageVariants,
     );
+    const conflictEvidence =
+      definitions[1]?.evidence ?? definitions[0]?.evidence;
     const hasMessageConflict = messages.size > 1 && !variantsAllowed;
     if (!hasMessageConflict && statuses.size <= 1) continue;
     diagnostics.push({
@@ -275,6 +278,7 @@ export function analyzeDetections(errors: DetectedError[]): Diagnostic[] {
       severity: "error",
       message: `${code} has conflicting definitions (${messages.size} messages, ${statuses.size} statuses).`,
       code,
+      ...(conflictEvidence ? { evidence: conflictEvidence } : {}),
       location: definitions[1]?.location ?? definitions[0]?.location ?? null,
     });
   }

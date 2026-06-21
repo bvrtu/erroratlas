@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "fixtureVersion": "2026-06-21",
+  "filesScanned": 11,
+  "profiles": [
+    {
+      "language": "typescript",
+      "syntaxProfile": "Next.js Response API",
+      "frameworkVersions": "Next.js 13+ response shape; static syntax only"
+    },
+    {
+      "language": "javascript",
+      "syntaxProfile": "Express response API",
+      "frameworkVersions": "Express 4/5 response shape; static syntax only"
+    },
+    {
+      "language": "python",
+      "syntaxProfile": "FastAPI/Starlette HTTPException",
+      "frameworkVersions": "FastAPI/Starlette detail shape; static syntax only"
+    },
+    {
+      "language": "java",
+      "syntaxProfile": "Java throw expressions",
+      "frameworkVersions": "Framework-neutral constructor profile; static syntax only"
+    },
+    {
+      "language": "dart",
+      "syntaxProfile": "Dart throw expressions",
+      "frameworkVersions": "Framework-neutral constructor profile; static syntax only"
+    },
+    {
+      "language": "swift",
+      "syntaxProfile": "Swift throw expressions",
+      "frameworkVersions": "Custom APIError enum case profile; static syntax only"
+    },
+    {
+      "language": "go",
+      "syntaxProfile": "Go returned error constructors",
+      "frameworkVersions": "Framework-neutral constructor profile; static syntax only"
+    },
+    {
+      "language": "csharp",
+      "syntaxProfile": "C# throw expressions",
+      "frameworkVersions": "Framework-neutral constructor profile; static syntax only"
+    },
+    {
+      "language": "kotlin",
+      "syntaxProfile": "Kotlin throw expressions",
+      "frameworkVersions": "Framework-neutral constructor profile; static syntax only"
+    }
+  ],
+  "structuredCodes": [
+    "CS_USER_MISSING",
+    "DART_USER_MISSING",
+    "GO_USER_MISSING",
+    "JAVA_USER_MISSING",
+    "JS_AUTH_REQUIRED",
+    "KOTLIN_USER_MISSING",
+    "PY_PAYMENT_DECLINED",
+    "PY_USER_MISSING",
+    "SWIFT_USER_MISSING",
+    "TS_FACTORY",
+    "TS_PROBLEM"
+  ],
+  "unstructuredByLanguage": {
+    "csharp": 2,
+    "dart": 2,
+    "go": 2,
+    "java": 2,
+    "kotlin": 2,
+    "python": 1,
+    "swift": 2,
+    "typescript": 1
+  },
+  "noiseCodes": [
+    "CS_NOISE",
+    "DART_NOISE",
+    "GO_NOISE",
+    "JAVA_NOISE",
+    "JS_REDIRECT",
+    "JS_SUCCESS",
+    "KOTLIN_NOISE",
+    "PY_NOISE",
+    "SWIFT_NOISE",
+    "TS_NOISE"
+  ]
+}

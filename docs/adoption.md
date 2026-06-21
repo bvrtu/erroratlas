@@ -58,7 +58,7 @@ For RFC 9457 APIs, describe error responses under `application/problem+json` and
 The composite Action exposes the same contract path relative to its project `path`:
 
 ```yaml
-- uses: bvrtu/erroratlas@v0.5.0
+- uses: bvrtu/erroratlas@v0.6.0
   with:
     path: .
     openapi: openapi.yaml
@@ -101,4 +101,4 @@ export const GET = withErrorAtlas(loadUser, monitor, {
 });
 ```
 
-A dependency-free FastAPI companion is intentionally deferred until it can be versioned and tested against the same runtime event schema; see the concrete 0.6 milestone in [the roadmap](roadmap.md).
+A dependency-free FastAPI companion is intentionally deferred until it can be versioned and tested against the same runtime event schema; see the concrete adapter/runtime milestone in [the roadmap](roadmap.md).

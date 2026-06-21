@@ -1,44 +1,53 @@
-# ErrorAtlas public repository audit dataset
+# ErrorAtlas benchmark datasets
 
-`bvrtu-public-repo-audit.json` contains derived ErrorAtlas measurements from public repositories owned by `bvrtu`. Dataset schema v2 adds documentation coverage, code density, and status-family aggregates; the query command remains backward-compatible with v1 snapshots.
+ErrorAtlas ships two privacy-safe aggregate datasets:
+
+- `bvrtu-public-repo-audit.json` is the backward-compatible schema v2 snapshot of public repositories owned by `bvrtu`.
+- `external-benchmark-v3.json` is a cross-owner snapshot generated from six explicitly allow-listed public repositories pinned to full commits. Its generated summary is [docs/benchmark.md](../docs/benchmark.md).
+
+Neither dataset is a security report or project-quality ranking. A zero structured count may mean that a repository uses patterns outside ErrorAtlas's conservative default profiles.
+
+## Schema and validation
+
+Published schemas live in `data/schemas/benchmark-v2.schema.json` and `benchmark-v3.schema.json`. `npm run check:data` validates each committed dataset against its schema, rejects forbidden fields recursively, and recomputes summary totals from repository rows.
+
+Schema v3 records:
+
+- dataset/tool version and deterministic generation time;
+- repository URL, exact commit, category, and license evidence;
+- files scanned and structured/unstructured occurrence ratios;
+- code density, identity/documentation counts, and Problem Details coverage;
+- status-family, language, confidence, and explicit not-evaluated limitation counts;
+- nullable OpenAPI/baseline/net-new metrics rather than invented zeroes.
 
 ## Privacy contract
 
-Published rows contain repository-level public metadata and aggregate counts only. Publication excludes source code, file paths, error messages, machine-readable error codes, raw scan payloads, and all private repository metadata. The sanitizer refuses a non-public row or any row containing `scan`.
+Published rows contain public reproducibility coordinates and aggregate counts only. Validation forbids source, paths, messages, error identities, raw scan payloads/findings, locations, stack traces, and private metadata—even when nested. The external generator uses temporary checkouts and removes them after aggregation.
 
-Repository names and commit SHAs are retained because they are public reproducibility coordinates. A repository’s results should not be interpreted as a security or quality ranking.
-
-## Schema
-
-Top-level fields are `schemaVersion`, `generatedAt`, `owner`, `tool`, `summary`, `repositories`, `license`, and `privacy`.
-
-Each successful v2 repository row exposes:
-
-| Field                                                      | Meaning                                                                             |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `filesScanned`                                             | Eligible files after versioned include/exclude rules                                |
-| `structuredErrors`, `unstructuredErrors`, `structuredRate` | Detected sites grouped by proven static identity                                    |
-| `codeDensity`                                              | All detected sites divided by files scanned                                         |
-| `uniqueStructuredCodes`                                    | Count of distinct proven identities; identities themselves are excluded             |
-| `documentedStructuredCodes`, `documentationCoverage`       | Distinct identities present in that repository’s configured catalog and their ratio |
-| `statusFamilies`                                           | Aggregate `4xx`, `5xx`, or other proven status families                             |
-| `languages`, `constructors`, `statusCodes`, `diagnostics`  | Aggregate count maps without source locations or text                               |
-
-Null ratios mean the denominator is zero, not that a zero score was observed. A zero-error repository may use unsupported patterns or contain no eligible sites.
+Repository names, commits, and license URLs remain because they are necessary public provenance. The snapshot license is CC BY 4.0; upstream source remains under each repository's recorded license.
 
 ## Query
 
-The read-only static query layer returns privacy-safe aggregates:
-
 ```bash
 npm run dataset:query
-npm run dataset:query -- --repository bvrtu/erroratlas
-npm run dataset:query -- path/to/dataset.json
+npm run dataset:query -- data/external-benchmark-v3.json
+npm run dataset:query -- data/external-benchmark-v3.json --repository benc-uk/go-rest-api
 ```
 
-It exposes files scanned, structured/unstructured ratios, documentation coverage, status-family distribution, and code density. It never opens repository clones or raw scan data.
+The static query layer reads committed JSON only. It never opens a clone or emits raw findings.
 
-## Reproduce
+## Reproduce external v3
+
+```bash
+npm run benchmark:external
+npm run check:data
+```
+
+`data/benchmark-allowlist.json` fixes the dataset version, timestamp, target URLs, full commits, scan includes, SPDX identifiers, license filenames, and license SHA-256 hashes. Generation fails on a commit or license mismatch. Network access is needed only to reproduce the snapshot; CI validates the committed result without network cloning.
+
+To add or update a target, review its public status and recognized license, pin a full commit, run `npm run benchmark:external -- --print-license-hashes`, review the aggregate result, then update the manifest deliberately. Do not auto-follow default branches.
+
+## Reproduce owner audit v2
 
 ```bash
 npm run audit:github -- bvrtu work/github-audit
@@ -47,8 +56,4 @@ npm run dataset:publish -- \
   data/bvrtu-public-repo-audit.json
 ```
 
-The audit requires authenticated GitHub CLI access. Every row records the public commit and ErrorAtlas version used. Re-running later may differ when repositories or detector rules change.
-
-## License
-
-The dataset is released under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+The legacy audit requires authenticated GitHub CLI access. Its schema remains supported so existing dataset consumers are not broken.

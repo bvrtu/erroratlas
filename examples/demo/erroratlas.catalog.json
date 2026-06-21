@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-06-20T17:37:24.515Z",
+  "generatedAt": "2026-06-21T09:02:43.183Z",
   "errors": [
     {
       "code": "CARD_REQUIRED",
@@ -20,7 +20,17 @@
           "endColumn": 73,
           "language": "python",
           "constructor": "AppError",
-          "flow": "propagated"
+          "flow": "propagated",
+          "evidence": {
+            "confidence": "proven",
+            "steps": [
+              {
+                "kind": "syntax",
+                "file": "src/payments.py",
+                "symbol": "AppError"
+              }
+            ]
+          }
         }
       ]
     },
@@ -42,7 +52,17 @@
           "endColumn": 72,
           "language": "python",
           "constructor": "AppError",
-          "flow": "propagated"
+          "flow": "propagated",
+          "evidence": {
+            "confidence": "proven",
+            "steps": [
+              {
+                "kind": "syntax",
+                "file": "src/payments.py",
+                "symbol": "AppError"
+              }
+            ]
+          }
         }
       ]
     },
@@ -64,7 +84,17 @@
           "endColumn": 7,
           "language": "typescript",
           "constructor": "AppError",
-          "flow": "propagated"
+          "flow": "propagated",
+          "evidence": {
+            "confidence": "proven",
+            "steps": [
+              {
+                "kind": "syntax",
+                "file": "src/users.ts",
+                "symbol": "AppError"
+              }
+            ]
+          }
         }
       ]
     },
@@ -86,7 +116,17 @@
           "endColumn": 5,
           "language": "typescript",
           "constructor": "AppError",
-          "flow": "propagated"
+          "flow": "propagated",
+          "evidence": {
+            "confidence": "proven",
+            "steps": [
+              {
+                "kind": "syntax",
+                "file": "src/users.ts",
+                "symbol": "AppError"
+              }
+            ]
+          }
         }
       ]
     }

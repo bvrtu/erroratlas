@@ -57,7 +57,17 @@
                 }
               }
             }
-          ]
+          ],
+          "properties": {
+            "erroratlasConfidence": "proven",
+            "erroratlasEvidence": [
+              {
+                "kind": "syntax",
+                "file": "src/payments.py",
+                "symbol": "AppError"
+              }
+            ]
+          }
         },
         {
           "ruleId": "openapi-status-drift",
@@ -79,7 +89,17 @@
                 }
               }
             }
-          ]
+          ],
+          "properties": {
+            "erroratlasConfidence": "proven",
+            "erroratlasEvidence": [
+              {
+                "kind": "syntax",
+                "file": "src/users.ts",
+                "symbol": "AppError"
+              }
+            ]
+          }
         }
       ]
     }

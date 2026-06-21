@@ -112,12 +112,14 @@ export function compareCatalogWithOpenApi(
   for (const [code, source] of sourceByCode) {
     const documented = contractByCode.get(code);
     const location = source.occurrences[0] ?? null;
+    const evidence = source.occurrences[0]?.evidence;
     if (!documented) {
       diagnostics.push({
         ruleId: "openapi-undocumented-error",
         severity: "error",
         message: `${code} exists in source but is missing from OpenAPI error responses.`,
         code,
+        ...(evidence ? { evidence } : {}),
         location,
       });
       continue;
@@ -137,6 +139,7 @@ export function compareCatalogWithOpenApi(
         severity: "error",
         message: `${code} has status ${source.status} in source but OpenAPI documents ${[...statuses].sort().join(", ")}.`,
         code,
+        ...(evidence ? { evidence } : {}),
         location,
       });
     }
@@ -151,6 +154,7 @@ export function compareCatalogWithOpenApi(
         severity: "error",
         message: `${code} is an RFC 9457 problem in source but OpenAPI does not expose it as application/problem+json.`,
         code,
+        ...(evidence ? { evidence } : {}),
         location,
       });
     }
@@ -177,6 +181,7 @@ export function compareCatalogWithOpenApi(
           severity: "error",
           message: `${code} has RFC 9457 drift in: ${conflictingFields.join(", ")}.`,
           code,
+          ...(evidence ? { evidence } : {}),
           location,
         });
       }
