@@ -1,0 +1,582 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bvrtu/erroratlas/raw/main/data/schemas/benchmark-v4.schema.json",
+  "title": "ErrorAtlas external benchmark dataset v4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "datasetVersion",
+    "generatedAt",
+    "tool",
+    "license",
+    "privacy",
+    "summary",
+    "repositories"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 4
+    },
+    "datasetVersion": {
+      "type": "string",
+      "pattern": "^\\d{4}\\.\\d{2}\\.\\d{2}\\.\\d+$"
+    },
+    "generatedAt": {
+      "$ref": "#/$defs/dateTime"
+    },
+    "tool": {
+      "$ref": "#/$defs/tool"
+    },
+    "license": {
+      "const": "CC-BY-4.0"
+    },
+    "privacy": {
+      "$ref": "#/$defs/privacy"
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "repositories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/repository"
+      }
+    }
+  },
+  "$defs": {
+    "dateTime": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+    },
+    "ratio": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "nullableCount": {
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "countMap": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {
+          "const": "erroratlas"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "excluded"],
+      "properties": {
+        "scope": {
+          "const": "allow-listed public repositories; aggregate metrics and public provenance only"
+        },
+        "excluded": {
+          "type": "array",
+          "minItems": 10,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "licenseEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "spdxId",
+        "name",
+        "licenseFile",
+        "metadataSource",
+        "url",
+        "sha256"
+      ],
+      "properties": {
+        "spdxId": {
+          "enum": ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "licenseFile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "metadataSource": {
+          "enum": ["github-api", "manual-review"]
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "filesScanned",
+        "filesByLanguage",
+        "filesByEcosystem",
+        "occurrenceCount",
+        "structuredOccurrences",
+        "unstructuredOccurrences",
+        "structuredRatio",
+        "codeDensity",
+        "uniqueStructuredIdentities",
+        "documentedStructuredIdentities",
+        "documentationCoverage",
+        "openapiDocumentCount",
+        "openapiDriftCount",
+        "problemDetailsOccurrences",
+        "problemDetailsCoverage",
+        "baselineDebtCount",
+        "netNewDriftCount",
+        "confidenceDistribution",
+        "apiResponseOccurrences",
+        "scanDurationMs",
+        "statusFamilies",
+        "extractorLimitations",
+        "unsupportedPatternCategories",
+        "limitations"
+      ],
+      "properties": {
+        "filesScanned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "filesByLanguage": {
+          "$ref": "#/$defs/countMap"
+        },
+        "filesByEcosystem": {
+          "$ref": "#/$defs/countMap"
+        },
+        "occurrenceCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "structuredOccurrences": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unstructuredOccurrences": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "structuredRatio": {
+          "$ref": "#/$defs/ratio"
+        },
+        "codeDensity": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "uniqueStructuredIdentities": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "documentedStructuredIdentities": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "documentationCoverage": {
+          "$ref": "#/$defs/ratio"
+        },
+        "openapiDocumentCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "openapiDriftCount": {
+          "$ref": "#/$defs/nullableCount"
+        },
+        "problemDetailsOccurrences": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "problemDetailsCoverage": {
+          "$ref": "#/$defs/ratio"
+        },
+        "baselineDebtCount": {
+          "$ref": "#/$defs/nullableCount"
+        },
+        "netNewDriftCount": {
+          "$ref": "#/$defs/nullableCount"
+        },
+        "confidenceDistribution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["proven", "partial", "unresolved"],
+          "properties": {
+            "proven": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "partial": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unresolved": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "apiResponseOccurrences": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scanDurationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "statusFamilies": {
+          "$ref": "#/$defs/countMap"
+        },
+        "extractorLimitations": {
+          "$ref": "#/$defs/countMap"
+        },
+        "unsupportedPatternCategories": {
+          "$ref": "#/$defs/countMap"
+        },
+        "limitations": {
+          "$ref": "#/$defs/countMap"
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "owner",
+        "repo",
+        "url",
+        "host",
+        "commit",
+        "defaultBranch",
+        "ecosystem",
+        "primaryLanguage",
+        "category",
+        "framework",
+        "reason",
+        "expectedLimitations",
+        "archived",
+        "scannedAt",
+        "status",
+        "licenseEvidence",
+        "metrics"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[^/]+/[^/]+$"
+        },
+        "host": {
+          "const": "github.com"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "defaultBranch": {
+          "type": "string",
+          "minLength": 1
+        },
+        "ecosystem": {
+          "type": "string",
+          "minLength": 1
+        },
+        "primaryLanguage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        },
+        "framework": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expectedLimitations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]*$"
+          }
+        },
+        "archived": {
+          "const": false
+        },
+        "scannedAt": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "status": {
+          "enum": ["scanned", "failed", "skipped"]
+        },
+        "failureCategory": {
+          "enum": [
+            "checkout-failed",
+            "commit-mismatch",
+            "license-mismatch",
+            "scan-failed",
+            "unsupported-profile"
+          ]
+        },
+        "skipCategory": {
+          "enum": ["source-scan-not-configured", "manual-review-required"]
+        },
+        "licenseEvidence": {
+          "$ref": "#/$defs/licenseEvidence"
+        },
+        "metrics": {
+          "$ref": "#/$defs/metrics"
+        }
+      }
+    },
+    "ecosystemSummary": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repositories",
+          "filesScanned",
+          "occurrenceCount",
+          "structuredOccurrences",
+          "unstructuredOccurrences"
+        ],
+        "properties": {
+          "repositories": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "filesScanned": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "occurrenceCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "structuredOccurrences": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unstructuredOccurrences": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repositoryCount",
+        "ecosystemCount",
+        "filesScanned",
+        "filesByLanguage",
+        "filesByEcosystem",
+        "occurrenceCount",
+        "structuredOccurrences",
+        "unstructuredOccurrences",
+        "structuredRatio",
+        "codeDensity",
+        "uniqueStructuredIdentities",
+        "documentedStructuredIdentities",
+        "documentationCoverage",
+        "openapiDocumentCount",
+        "openapiDriftCount",
+        "problemDetailsOccurrences",
+        "problemDetailsCoverage",
+        "baselineDebtCount",
+        "netNewDriftCount",
+        "confidenceDistribution",
+        "apiResponseOccurrences",
+        "scanDurationMs",
+        "failureCount",
+        "skipCount",
+        "categories",
+        "ecosystems",
+        "statusFamilies",
+        "extractorLimitations",
+        "unsupportedPatternCategories",
+        "limitations",
+        "perEcosystem"
+      ],
+      "properties": {
+        "repositoryCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ecosystemCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "filesScanned": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "filesByLanguage": {
+          "$ref": "#/$defs/countMap"
+        },
+        "filesByEcosystem": {
+          "$ref": "#/$defs/countMap"
+        },
+        "occurrenceCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "structuredOccurrences": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unstructuredOccurrences": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "structuredRatio": {
+          "$ref": "#/$defs/ratio"
+        },
+        "codeDensity": {
+          "type": ["number", "null"],
+          "minimum": 0
+        },
+        "uniqueStructuredIdentities": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "documentedStructuredIdentities": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "documentationCoverage": {
+          "$ref": "#/$defs/ratio"
+        },
+        "openapiDocumentCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "openapiDriftCount": {
+          "$ref": "#/$defs/nullableCount"
+        },
+        "problemDetailsOccurrences": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "problemDetailsCoverage": {
+          "$ref": "#/$defs/ratio"
+        },
+        "baselineDebtCount": {
+          "$ref": "#/$defs/nullableCount"
+        },
+        "netNewDriftCount": {
+          "$ref": "#/$defs/nullableCount"
+        },
+        "confidenceDistribution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["proven", "partial", "unresolved"],
+          "properties": {
+            "proven": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "partial": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unresolved": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "apiResponseOccurrences": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "scanDurationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failureCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "categories": {
+          "$ref": "#/$defs/countMap"
+        },
+        "ecosystems": {
+          "$ref": "#/$defs/countMap"
+        },
+        "statusFamilies": {
+          "$ref": "#/$defs/countMap"
+        },
+        "extractorLimitations": {
+          "$ref": "#/$defs/countMap"
+        },
+        "unsupportedPatternCategories": {
+          "$ref": "#/$defs/countMap"
+        },
+        "limitations": {
+          "$ref": "#/$defs/countMap"
+        },
+        "perEcosystem": {
+          "$ref": "#/$defs/ecosystemSummary"
+        }
+      }
+    }
+  }
+}

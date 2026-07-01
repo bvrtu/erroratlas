@@ -4,6 +4,7 @@ ErrorAtlas ships two privacy-safe aggregate datasets:
 
 - `bvrtu-public-repo-audit.json` is the backward-compatible schema v2 snapshot of public repositories owned by `bvrtu`.
 - `external-benchmark-v3.json` is a cross-owner snapshot generated from six explicitly allow-listed public repositories pinned to full commits. Its generated summary is [docs/benchmark.md](../docs/benchmark.md).
+- `external-benchmark-v4.json`, when present, is the v0.7.0 benchmark-foundation snapshot generated from `benchmark-manifest-v2.json`. It adds richer public provenance, ecosystem/category summaries, scan duration, OpenAPI artifact counts, and failure/skip categories while remaining aggregate-only.
 
 Neither dataset is a security report or project-quality ranking. A zero structured count may mean that a repository uses patterns outside ErrorAtlas's conservative default profiles.
 
@@ -19,6 +20,12 @@ Schema v3 records:
 - code density, identity/documentation counts, and Problem Details coverage;
 - status-family, language, confidence, and explicit not-evaluated limitation counts;
 - nullable OpenAPI/baseline/net-new metrics rather than invented zeroes.
+
+Schema v4 adds:
+
+- explicit manifest-level repository identity, owner/repo, default branch, archived status, framework/category, reason for inclusion, scan profile, expected limitations, added date, and last verification date;
+- public license provenance with SPDX ID, license name, license file, metadata source, and SHA-256 hash;
+- files by language and ecosystem, occurrence count, proven/partial/unresolved confidence distribution, API response occurrence count, OpenAPI document count, scan duration, failure/skip counts, limitation categories, unsupported pattern categories, and per-ecosystem aggregates.
 
 ## Privacy contract
 
@@ -43,9 +50,11 @@ npm run benchmark:external
 npm run check:data
 ```
 
-`data/benchmark-allowlist.json` fixes the dataset version, timestamp, target URLs, full commits, scan includes, SPDX identifiers, license filenames, and license SHA-256 hashes. Generation fails on a commit or license mismatch. Network access is needed only to reproduce the snapshot; CI validates the committed result without network cloning.
+`data/benchmark-allowlist.json` fixes the v3 dataset version, timestamp, target URLs, full commits, scan includes, SPDX identifiers, license filenames, and license SHA-256 hashes. `data/benchmark-manifest-v2.json` is the richer v0.7.0 manifest for v4 snapshots. Generation fails on a commit or license mismatch. Network access is needed only to reproduce external snapshots; CI validates committed results without network cloning.
 
-To add or update a target, review its public status and recognized license, pin a full commit, run `npm run benchmark:external -- --print-license-hashes`, review the aggregate result, then update the manifest deliberately. Do not auto-follow default branches.
+To add or update a target, review its public status and recognized license, pin a full commit, run `npm run benchmark:external -- --print-license-hashes`, review the aggregate result, then update the manifest deliberately. Do not auto-follow default branches. For the legacy v3 snapshot, pass `--manifest data/benchmark-allowlist.json --output data/external-benchmark-v3.json`.
+
+The manual GitHub Actions workflow `External benchmark` can run the full network benchmark through `workflow_dispatch`. It is intentionally not part of every pull request because cloning public repositories can be slow or flaky.
 
 ## Reproduce owner audit v2
 

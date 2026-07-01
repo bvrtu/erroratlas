@@ -337,7 +337,7 @@ Static resolution covers TypeScript/JavaScript immutable aliases, immutable dest
 
 Runtime monitoring is an embeddable SDK and local/HTTP event format, not a hosted Sentry replacement: ErrorAtlas does not provide a managed dashboard, alert routing, retention, symbolication service, or distributed trace backend. The safe fixer currently adds codes only to explicit TypeScript/JavaScript API response objects; it does not rewrite exception types or imports.
 
-The repository also contains versioned, privacy-safe [benchmark data](data/README.md). The initial external v3 snapshot scans six explicitly allow-listed public repositories pinned to commits, records SPDX and license-file hashes, and publishes aggregate metrics only. It found 23 error occurrences whose identities remained unresolved—useful evidence of ErrorAtlas's conservative boundary, not an industry-wide benchmark or project-quality ranking. Query either snapshot locally with `npm run dataset:query`. Raw messages, identities, paths, source, and private metadata are excluded.
+The repository also contains versioned, privacy-safe [benchmark data](data/README.md). The released v0.6.0 external v3 snapshot scans six explicitly allow-listed public repositories pinned to commits, records SPDX and license-file hashes, and publishes aggregate metrics only. The v0.7.0 benchmark foundation adds a richer manifest and aggregate-only v4 schema for broader real-world validation. These snapshots are not an industry-wide benchmark or project-quality ranking. Query committed snapshots locally with `npm run dataset:query`. Raw messages, identities, paths, source, and private metadata are excluded.
 
 ## Further reading
 
