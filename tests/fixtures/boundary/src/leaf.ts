@@ -1,0 +1,1 @@
+export const DISTANT_CODE = "BOUNDARY_TOO_FAR";

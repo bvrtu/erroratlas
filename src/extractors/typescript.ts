@@ -361,6 +361,7 @@ function responseDetection(input: {
       input.values,
     );
   const explicitlyError = /["']?error["']?\s*:/.test(input.body);
+  if (status !== null && status < 400) return null;
   if (code === null && !explicitlyError && (status === null || status < 400)) {
     return null;
   }

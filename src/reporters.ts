@@ -83,8 +83,11 @@ export function renderMarkdown(catalog: ErrorCatalog): string {
     if (error.occurrences.length) {
       lines.push("**Defined at**", "");
       for (const occurrence of error.occurrences) {
+        const proof = occurrence.evidence
+          ? ` — proof: **${occurrence.evidence.confidence}** via ${renderEvidenceKinds(occurrence.evidence)}`
+          : "";
         lines.push(
-          `- \`${occurrence.file}:${occurrence.line}\` (${occurrence.language}, ${occurrence.constructor}${occurrence.flow ? `, ${occurrence.flow}` : ""})`,
+          `- \`${occurrence.file}:${occurrence.line}\` (${occurrence.language}, ${occurrence.constructor}${occurrence.flow ? `, ${occurrence.flow}` : ""})${proof}`,
         );
       }
       lines.push("");
@@ -146,7 +149,21 @@ function sarifResult(diagnostic: Diagnostic): Record<string, unknown> {
       { physicalLocation: physicalLocation(diagnostic.location) },
     ];
   }
+  if (diagnostic.evidence) {
+    result.properties = {
+      erroratlasConfidence: diagnostic.evidence.confidence,
+      erroratlasEvidence: diagnostic.evidence.steps,
+    };
+  }
   return result;
+}
+
+function renderEvidenceKinds(
+  evidence: NonNullable<Diagnostic["evidence"]>,
+): string {
+  return evidence.steps
+    .map((step) => `\`${humanize(step.kind).toLowerCase()}\``)
+    .join(" → ");
 }
 
 function physicalLocation(location: SourceLocation): Record<string, unknown> {

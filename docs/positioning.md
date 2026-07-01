@@ -4,11 +4,15 @@
 
 ErrorAtlas governs error contracts from the place they originate: source code. Its hard center is deterministic extraction plus reconciliation across source, a human-maintained catalog, OpenAPI/RFC 9457, and optional runtime evidence.
 
+Its differentiator is not “more detections.” It is reviewable proof: a finding can explain whether an identity came from a literal, immutable alias, bounded import/re-export chain, or factory—and it remains partial when that chain cannot be proven.
+
 ## What ErrorAtlas is—and is not
 
 ErrorAtlas is a local, source-first governance tool. It proves static error identities and payload fields, generates a catalog without overwriting human prose, and reports source/catalog/OpenAPI drift in CI.
 
 It is not a hosted observability backend, a replacement exception framework, a general API linter, or a document-to-document OpenAPI diff engine. Its runtime and framework adapters exist to correlate contracts, not to expand ErrorAtlas into those product categories.
+
+The project is enterprise-oriented and pre-1.0: production-conscious and designed for CI adoption, but not yet a fully enterprise-ready product with a completed security review, support policy, and 1.0 compatibility guarantees.
 
 ## Category comparison
 

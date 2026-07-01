@@ -8,7 +8,9 @@
 
 ErrorAtlas is a source-first error-contract governance tool. Its AST-powered CLI proves which application errors and API error responses exist in TypeScript, JavaScript, Python, Java, Dart, Swift, Go, C#, and Kotlin; then keeps a human-editable catalog, OpenAPI/RFC 9457, CI, and optional runtime evidence aligned with that source truth.
 
-It is not a generic observability platform and not merely an OpenAPI diff. See [positioning](docs/positioning.md).
+It is not Sentry, not oasdiff, and not merely a framework response formatter. See [positioning](docs/positioning.md) for the complementary boundaries.
+
+**The 10-second version:** ErrorAtlas scans source, records only error facts it can prove, preserves the explanations humans wrote, and fails CI when source, catalog, or OpenAPI stops agreeing. Every finding can show its bounded proof chain.
 
 ```text
 ✖ src/users.ts:42:11 [undocumented-error] USER_SUSPENDED exists in source but is missing from the catalog.
@@ -22,6 +24,8 @@ Scanned 38 files · 17 structured errors · 1 error · 1 warning · 0 notes
 ErrorAtlas is a local CLI and library for proving error-contract facts from source, preserving human-owned catalog documentation, and detecting drift against that catalog and OpenAPI. It is designed to run before merge and can optionally correlate those contracts with runtime events.
 
 It is not a hosted monitoring service, a general-purpose static analyzer, an OpenAPI revision diff engine, or a framework that takes over exception handling. Dynamic values remain unstructured unless the bounded resolver can prove them.
+
+ErrorAtlas is an enterprise-oriented, pre-1.0 tool designed for CI adoption—not a fully enterprise-ready product. Its support policy, security review, and compatibility guarantees are still being matured toward 1.0.
 
 ## Why ErrorAtlas?
 
@@ -116,7 +120,7 @@ reply.code(503).send({ errorCode: "UPSTREAM_DOWN", error: "Retry later" });
 ```
 
 Basic lexical flow is recorded as `caught`, `rethrown`, `returned`, or `propagated` for each occurrence.
-JSON scan and catalog occurrences also include a machine-readable `evidence` chain. It records only proof mechanics—such as literal, alias, import, re-export, or factory steps—and never embeds source text or literal error values.
+JSON scan and catalog occurrences include a machine-readable `evidence` chain. Markdown shows a compact proof summary, while SARIF carries the same confidence and steps in result properties. Evidence records only mechanics—such as syntax, alias, import, re-export, or factory steps—and never embeds source text or literal error values.
 
 ## Commands
 
@@ -263,7 +267,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: bvrtu/erroratlas@v0.5.0
+      - uses: bvrtu/erroratlas@v0.6.0
         with:
           path: .
           fail-on: error
@@ -333,7 +337,7 @@ Static resolution covers TypeScript/JavaScript immutable aliases, immutable dest
 
 Runtime monitoring is an embeddable SDK and local/HTTP event format, not a hosted Sentry replacement: ErrorAtlas does not provide a managed dashboard, alert routing, retention, symbolication service, or distributed trace backend. The safe fixer currently adds codes only to explicit TypeScript/JavaScript API response objects; it does not rewrite exception types or imports.
 
-The repository also contains a versioned, privacy-safe [public repository audit dataset](data/README.md) generated from real projects. Query aggregate metrics locally with `npm run dataset:query`. Raw messages, codes, file paths, source, and private repository metadata are excluded.
+The repository also contains versioned, privacy-safe [benchmark data](data/README.md). The initial external v3 snapshot scans six explicitly allow-listed public repositories pinned to commits, records SPDX and license-file hashes, and publishes aggregate metrics only. It found 23 error occurrences whose identities remained unresolved—useful evidence of ErrorAtlas's conservative boundary, not an industry-wide benchmark or project-quality ranking. Query either snapshot locally with `npm run dataset:query`. Raw messages, identities, paths, source, and private metadata are excluded.
 
 ## Further reading
 
@@ -341,8 +345,10 @@ The repository also contains a versioned, privacy-safe [public repository audit 
 - [RFC 9457 mapping and migration](docs/rfc9457.md)
 - [Greenfield, baseline, OpenAPI, and runtime adoption](docs/adoption.md)
 - [Competitive positioning](docs/positioning.md)
+- [External benchmark snapshot](docs/benchmark.md)
+- [Trust-first implementation audit](docs/audit-current-state.md)
 - [Issue-sized follow-up roadmap](docs/roadmap.md)
-- [0.5.0 release audit and exact limitations](docs/release-audit-0.5.0.md)
+- [0.6.0 release-candidate audit and exact limitations](docs/release-audit-0.6.0.md)
 
 ## Contributing
 

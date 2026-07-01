@@ -226,6 +226,8 @@ function responseDetection(input) {
         propertyStaticNumber(input.statusText, ["status", "statusCode", "status_code"], input.values) ??
         propertyStaticNumber(input.body, ["status", "statusCode", "status_code"], input.values);
     const explicitlyError = /["']?error["']?\s*:/.test(input.body);
+    if (status !== null && status < 400)
+        return null;
     if (code === null && !explicitlyError && (status === null || status < 400)) {
         return null;
     }

@@ -49,7 +49,10 @@ export function renderMarkdown(catalog) {
         if (error.occurrences.length) {
             lines.push("**Defined at**", "");
             for (const occurrence of error.occurrences) {
-                lines.push(`- \`${occurrence.file}:${occurrence.line}\` (${occurrence.language}, ${occurrence.constructor}${occurrence.flow ? `, ${occurrence.flow}` : ""})`);
+                const proof = occurrence.evidence
+                    ? ` — proof: **${occurrence.evidence.confidence}** via ${renderEvidenceKinds(occurrence.evidence)}`
+                    : "";
+                lines.push(`- \`${occurrence.file}:${occurrence.line}\` (${occurrence.language}, ${occurrence.constructor}${occurrence.flow ? `, ${occurrence.flow}` : ""})${proof}`);
             }
             lines.push("");
         }
@@ -100,7 +103,18 @@ function sarifResult(diagnostic) {
             { physicalLocation: physicalLocation(diagnostic.location) },
         ];
     }
+    if (diagnostic.evidence) {
+        result.properties = {
+            erroratlasConfidence: diagnostic.evidence.confidence,
+            erroratlasEvidence: diagnostic.evidence.steps,
+        };
+    }
     return result;
+}
+function renderEvidenceKinds(evidence) {
+    return evidence.steps
+        .map((step) => `\`${humanize(step.kind).toLowerCase()}\``)
+        .join(" → ");
 }
 function physicalLocation(location) {
     return {

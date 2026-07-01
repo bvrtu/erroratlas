@@ -177,6 +177,7 @@ export function analyzeDetections(errors) {
         severity: "warning",
         message: `${item.constructor} has no static machine-readable error code.`,
         code: null,
+        ...(item.evidence ? { evidence: item.evidence } : {}),
         location: item.location,
     }));
     const byCode = new Map();
@@ -191,6 +192,7 @@ export function analyzeDetections(errors) {
         const messages = new Set(definitions.map((item) => item.message).filter(Boolean));
         const statuses = new Set(definitions.map((item) => item.status).filter((item) => item !== null));
         const variantsAllowed = definitions.every((item) => item.allowMessageVariants);
+        const conflictEvidence = definitions[1]?.evidence ?? definitions[0]?.evidence;
         const hasMessageConflict = messages.size > 1 && !variantsAllowed;
         if (!hasMessageConflict && statuses.size <= 1)
             continue;
@@ -199,6 +201,7 @@ export function analyzeDetections(errors) {
             severity: "error",
             message: `${code} has conflicting definitions (${messages.size} messages, ${statuses.size} statuses).`,
             code,
+            ...(conflictEvidence ? { evidence: conflictEvidence } : {}),
             location: definitions[1]?.location ?? definitions[0]?.location ?? null,
         });
     }

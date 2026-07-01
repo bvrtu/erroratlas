@@ -1,0 +1,79 @@
+{
+  "manifestVersion": 1,
+  "datasetVersion": "2026.06.21.1",
+  "generatedAt": "2026-06-21T00:00:00Z",
+  "repositories": [
+    {
+      "repository": "w3tecch/express-typescript-boilerplate",
+      "url": "https://github.com/w3tecch/express-typescript-boilerplate",
+      "commit": "17727010f7f098d8ca8b78da0a5b3c7297659381",
+      "category": "typescript-node-api",
+      "license": {
+        "spdxId": "MIT",
+        "filename": "LICENSE",
+        "sha256": "e119e5c7536e0b1a8ec6e3f5b41b799817a02e008419309522c215b3c953712a"
+      },
+      "include": ["src/**/*.{ts,tsx}"]
+    },
+    {
+      "repository": "1owkeyme/fastapi-clean-architecture-example",
+      "url": "https://github.com/1owkeyme/fastapi-clean-architecture-example",
+      "commit": "e317f7b7843e4b9f1bf8157b29f224d2d34f3d11",
+      "category": "python-api",
+      "license": {
+        "spdxId": "MIT",
+        "filename": "LICENSE",
+        "sha256": "532f8819e3f081a7cff3072431c2e84a677df58e8cf43a1c2b201ec4b707bcab"
+      },
+      "include": ["src/**/*.py"]
+    },
+    {
+      "repository": "spring-guides/gs-rest-service",
+      "url": "https://github.com/spring-guides/gs-rest-service",
+      "commit": "e9efc9dfa0abe8cf8e15cf0e71830b5125322cae",
+      "category": "java-spring",
+      "license": {
+        "spdxId": "Apache-2.0",
+        "filename": "LICENSE.txt",
+        "sha256": "56dfc19e0dc836e30177332f73e8e6fbc297941acf3d906eec6eaaa46c2c452a"
+      },
+      "include": ["complete/src/**/*.java"]
+    },
+    {
+      "repository": "benc-uk/go-rest-api",
+      "url": "https://github.com/benc-uk/go-rest-api",
+      "commit": "094fa3864d140244909281dc903a9ace4c788d30",
+      "category": "go-http",
+      "license": {
+        "spdxId": "MIT",
+        "filename": "LICENSE",
+        "sha256": "7597f18bd749d75734437d940edbee9cb4e22984fe8d7f2b6787325ecf3e3a4e"
+      },
+      "include": ["{cmd,pkg}/**/*.go"]
+    },
+    {
+      "repository": "SaraRasoulian/DotNet-WebAPI-Sample",
+      "url": "https://github.com/SaraRasoulian/DotNet-WebAPI-Sample",
+      "commit": "f5a81cb4ce92016eb998a304be2db70162c565b4",
+      "category": "csharp-aspnet",
+      "license": {
+        "spdxId": "MIT",
+        "filename": "LICENSE",
+        "sha256": "48e9f0af71aee021b063fac978d84ff625a5cdf93b81c644b2cc388172d75e75"
+      },
+      "include": ["src/**/*.cs"]
+    },
+    {
+      "repository": "ktorio/ktor-samples",
+      "url": "https://github.com/ktorio/ktor-samples",
+      "commit": "c89f051e1183455eda8b26146555a1b5ed23d18c",
+      "category": "kotlin-server",
+      "license": {
+        "spdxId": "Apache-2.0",
+        "filename": "LICENSE",
+        "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+      },
+      "include": ["{httpbin,openapi,redirect-with-exception}/**/*.{kt,kts}"]
+    }
+  ]
+}

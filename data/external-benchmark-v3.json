@@ -1,0 +1,296 @@
+{
+  "schemaVersion": 3,
+  "datasetVersion": "2026.06.21.1",
+  "generatedAt": "2026-06-21T00:00:00Z",
+  "tool": {
+    "name": "erroratlas",
+    "version": "0.6.0"
+  },
+  "license": "CC-BY-4.0",
+  "privacy": {
+    "scope": "allow-listed public repositories; aggregates only",
+    "excluded": [
+      "source code",
+      "error messages",
+      "error identities",
+      "file paths",
+      "raw scan payloads",
+      "stack traces",
+      "private repository metadata"
+    ]
+  },
+  "summary": {
+    "repositories": 6,
+    "filesScanned": 261,
+    "structuredOccurrences": 0,
+    "unstructuredOccurrences": 23,
+    "structuredRatio": 0,
+    "codeDensity": 0.0881,
+    "uniqueStructuredIdentities": 0,
+    "documentedStructuredIdentities": 0,
+    "documentationCoverage": null,
+    "openapiDriftCount": null,
+    "problemDetailsOccurrences": 0,
+    "problemDetailsCoverage": null,
+    "baselineDebtCount": null,
+    "netNewDriftCount": null,
+    "confidenceDistribution": {
+      "partial": 23,
+      "proven": 0
+    },
+    "categories": {
+      "csharp-aspnet": 1,
+      "go-http": 1,
+      "java-spring": 1,
+      "kotlin-server": 1,
+      "python-api": 1,
+      "typescript-node-api": 1
+    },
+    "statusFamilies": {},
+    "limitations": {
+      "baseline-not-evaluated": 6,
+      "catalog-not-present": 6,
+      "openapi-not-evaluated": 6
+    }
+  },
+  "repositories": [
+    {
+      "repository": "w3tecch/express-typescript-boilerplate",
+      "url": "https://github.com/w3tecch/express-typescript-boilerplate",
+      "commit": "17727010f7f098d8ca8b78da0a5b3c7297659381",
+      "category": "typescript-node-api",
+      "scannedAt": "2026-06-21T00:00:00Z",
+      "licenseEvidence": {
+        "spdxId": "MIT",
+        "url": "https://github.com/w3tecch/express-typescript-boilerplate/blob/17727010f7f098d8ca8b78da0a5b3c7297659381/LICENSE",
+        "sha256": "e119e5c7536e0b1a8ec6e3f5b41b799817a02e008419309522c215b3c953712a"
+      },
+      "metrics": {
+        "filesScanned": 59,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 3,
+        "structuredRatio": 0,
+        "codeDensity": 0.0508,
+        "uniqueStructuredIdentities": 0,
+        "documentedStructuredIdentities": 0,
+        "documentationCoverage": null,
+        "openapiDriftCount": null,
+        "problemDetailsOccurrences": 0,
+        "problemDetailsCoverage": null,
+        "baselineDebtCount": null,
+        "netNewDriftCount": null,
+        "confidenceDistribution": {
+          "proven": 0,
+          "partial": 3
+        },
+        "languages": {
+          "typescript": 3
+        },
+        "statusFamilies": {},
+        "limitations": {
+          "baseline-not-evaluated": 1,
+          "openapi-not-evaluated": 1,
+          "catalog-not-present": 1
+        }
+      }
+    },
+    {
+      "repository": "1owkeyme/fastapi-clean-architecture-example",
+      "url": "https://github.com/1owkeyme/fastapi-clean-architecture-example",
+      "commit": "e317f7b7843e4b9f1bf8157b29f224d2d34f3d11",
+      "category": "python-api",
+      "scannedAt": "2026-06-21T00:00:00Z",
+      "licenseEvidence": {
+        "spdxId": "MIT",
+        "url": "https://github.com/1owkeyme/fastapi-clean-architecture-example/blob/e317f7b7843e4b9f1bf8157b29f224d2d34f3d11/LICENSE",
+        "sha256": "532f8819e3f081a7cff3072431c2e84a677df58e8cf43a1c2b201ec4b707bcab"
+      },
+      "metrics": {
+        "filesScanned": 124,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 4,
+        "structuredRatio": 0,
+        "codeDensity": 0.0323,
+        "uniqueStructuredIdentities": 0,
+        "documentedStructuredIdentities": 0,
+        "documentationCoverage": null,
+        "openapiDriftCount": null,
+        "problemDetailsOccurrences": 0,
+        "problemDetailsCoverage": null,
+        "baselineDebtCount": null,
+        "netNewDriftCount": null,
+        "confidenceDistribution": {
+          "proven": 0,
+          "partial": 4
+        },
+        "languages": {
+          "python": 4
+        },
+        "statusFamilies": {},
+        "limitations": {
+          "baseline-not-evaluated": 1,
+          "openapi-not-evaluated": 1,
+          "catalog-not-present": 1
+        }
+      }
+    },
+    {
+      "repository": "spring-guides/gs-rest-service",
+      "url": "https://github.com/spring-guides/gs-rest-service",
+      "commit": "e9efc9dfa0abe8cf8e15cf0e71830b5125322cae",
+      "category": "java-spring",
+      "scannedAt": "2026-06-21T00:00:00Z",
+      "licenseEvidence": {
+        "spdxId": "Apache-2.0",
+        "url": "https://github.com/spring-guides/gs-rest-service/blob/e9efc9dfa0abe8cf8e15cf0e71830b5125322cae/LICENSE.txt",
+        "sha256": "56dfc19e0dc836e30177332f73e8e6fbc297941acf3d906eec6eaaa46c2c452a"
+      },
+      "metrics": {
+        "filesScanned": 3,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 0,
+        "structuredRatio": null,
+        "codeDensity": 0,
+        "uniqueStructuredIdentities": 0,
+        "documentedStructuredIdentities": 0,
+        "documentationCoverage": null,
+        "openapiDriftCount": null,
+        "problemDetailsOccurrences": 0,
+        "problemDetailsCoverage": null,
+        "baselineDebtCount": null,
+        "netNewDriftCount": null,
+        "confidenceDistribution": {
+          "proven": 0,
+          "partial": 0
+        },
+        "languages": {},
+        "statusFamilies": {},
+        "limitations": {
+          "baseline-not-evaluated": 1,
+          "openapi-not-evaluated": 1,
+          "catalog-not-present": 1
+        }
+      }
+    },
+    {
+      "repository": "benc-uk/go-rest-api",
+      "url": "https://github.com/benc-uk/go-rest-api",
+      "commit": "094fa3864d140244909281dc903a9ace4c788d30",
+      "category": "go-http",
+      "scannedAt": "2026-06-21T00:00:00Z",
+      "licenseEvidence": {
+        "spdxId": "MIT",
+        "url": "https://github.com/benc-uk/go-rest-api/blob/094fa3864d140244909281dc903a9ace4c788d30/LICENSE",
+        "sha256": "7597f18bd749d75734437d940edbee9cb4e22984fe8d7f2b6787325ecf3e3a4e"
+      },
+      "metrics": {
+        "filesScanned": 16,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 9,
+        "structuredRatio": 0,
+        "codeDensity": 0.5625,
+        "uniqueStructuredIdentities": 0,
+        "documentedStructuredIdentities": 0,
+        "documentationCoverage": null,
+        "openapiDriftCount": null,
+        "problemDetailsOccurrences": 0,
+        "problemDetailsCoverage": null,
+        "baselineDebtCount": null,
+        "netNewDriftCount": null,
+        "confidenceDistribution": {
+          "proven": 0,
+          "partial": 9
+        },
+        "languages": {
+          "go": 9
+        },
+        "statusFamilies": {},
+        "limitations": {
+          "baseline-not-evaluated": 1,
+          "openapi-not-evaluated": 1,
+          "catalog-not-present": 1
+        }
+      }
+    },
+    {
+      "repository": "SaraRasoulian/DotNet-WebAPI-Sample",
+      "url": "https://github.com/SaraRasoulian/DotNet-WebAPI-Sample",
+      "commit": "f5a81cb4ce92016eb998a304be2db70162c565b4",
+      "category": "csharp-aspnet",
+      "scannedAt": "2026-06-21T00:00:00Z",
+      "licenseEvidence": {
+        "spdxId": "MIT",
+        "url": "https://github.com/SaraRasoulian/DotNet-WebAPI-Sample/blob/f5a81cb4ce92016eb998a304be2db70162c565b4/LICENSE",
+        "sha256": "48e9f0af71aee021b063fac978d84ff625a5cdf93b81c644b2cc388172d75e75"
+      },
+      "metrics": {
+        "filesScanned": 32,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 3,
+        "structuredRatio": 0,
+        "codeDensity": 0.0938,
+        "uniqueStructuredIdentities": 0,
+        "documentedStructuredIdentities": 0,
+        "documentationCoverage": null,
+        "openapiDriftCount": null,
+        "problemDetailsOccurrences": 0,
+        "problemDetailsCoverage": null,
+        "baselineDebtCount": null,
+        "netNewDriftCount": null,
+        "confidenceDistribution": {
+          "proven": 0,
+          "partial": 3
+        },
+        "languages": {
+          "csharp": 3
+        },
+        "statusFamilies": {},
+        "limitations": {
+          "baseline-not-evaluated": 1,
+          "openapi-not-evaluated": 1,
+          "catalog-not-present": 1
+        }
+      }
+    },
+    {
+      "repository": "ktorio/ktor-samples",
+      "url": "https://github.com/ktorio/ktor-samples",
+      "commit": "c89f051e1183455eda8b26146555a1b5ed23d18c",
+      "category": "kotlin-server",
+      "scannedAt": "2026-06-21T00:00:00Z",
+      "licenseEvidence": {
+        "spdxId": "Apache-2.0",
+        "url": "https://github.com/ktorio/ktor-samples/blob/c89f051e1183455eda8b26146555a1b5ed23d18c/LICENSE",
+        "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+      },
+      "metrics": {
+        "filesScanned": 27,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 4,
+        "structuredRatio": 0,
+        "codeDensity": 0.1481,
+        "uniqueStructuredIdentities": 0,
+        "documentedStructuredIdentities": 0,
+        "documentationCoverage": null,
+        "openapiDriftCount": null,
+        "problemDetailsOccurrences": 0,
+        "problemDetailsCoverage": null,
+        "baselineDebtCount": null,
+        "netNewDriftCount": null,
+        "confidenceDistribution": {
+          "proven": 0,
+          "partial": 4
+        },
+        "languages": {
+          "kotlin": 4
+        },
+        "statusFamilies": {},
+        "limitations": {
+          "baseline-not-evaluated": 1,
+          "openapi-not-evaluated": 1,
+          "catalog-not-present": 1
+        }
+      }
+    }
+  ]
+}
