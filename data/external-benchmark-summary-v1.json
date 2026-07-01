@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "datasetVersion": "2026.07.02.1",
+  "generatedAt": "2026-07-02T00:00:00Z",
+  "sourceDataset": "data/external-benchmark-v4.json",
+  "summary": {
+    "repositoryCount": 11,
+    "ecosystemCount": 7,
+    "filesScanned": 335,
+    "filesByLanguage": {
+      "csharp": 32,
+      "go": 17,
+      "java": 4,
+      "javascript": 4,
+      "kotlin": 43,
+      "python": 146,
+      "typescript": 107
+    },
+    "filesByEcosystem": {
+      "csharp": 32,
+      "go": 16,
+      "java": 3,
+      "kotlin": 27,
+      "python": 146,
+      "typescript-javascript": 111
+    },
+    "occurrenceCount": 36,
+    "structuredOccurrences": 0,
+    "unstructuredOccurrences": 36,
+    "structuredRatio": 0,
+    "codeDensity": 0.1075,
+    "uniqueStructuredIdentities": 0,
+    "documentedStructuredIdentities": 0,
+    "documentationCoverage": null,
+    "openapiDocumentCount": 1,
+    "openapiDriftCount": null,
+    "problemDetailsOccurrences": 0,
+    "problemDetailsCoverage": null,
+    "baselineDebtCount": null,
+    "netNewDriftCount": null,
+    "confidenceDistribution": {
+      "partial": 0,
+      "proven": 0,
+      "unresolved": 36
+    },
+    "apiResponseOccurrences": 0,
+    "scanDurationMs": 233,
+    "failureCount": 0,
+    "skipCount": 0,
+    "categories": {
+      "csharp-aspnet": 1,
+      "go-http": 1,
+      "java-spring": 1,
+      "javascript-fastify": 1,
+      "kotlin-ktor": 1,
+      "openapi-spec": 1,
+      "python-drf": 1,
+      "python-fastapi": 1,
+      "typescript-express": 1,
+      "typescript-nestjs": 1,
+      "typescript-next": 1
+    },
+    "ecosystems": {
+      "csharp": 1,
+      "go": 1,
+      "java": 1,
+      "kotlin": 1,
+      "openapi": 1,
+      "python": 2,
+      "typescript-javascript": 4
+    },
+    "statusFamilies": {},
+    "extractorLimitations": {
+      "no-error-occurrences-detected": 3,
+      "unstructured-errors-present": 8
+    },
+    "unsupportedPatternCategories": {
+      "unstructured-error": 36
+    },
+    "limitations": {
+      "baseline-not-evaluated": 11,
+      "catalog-not-present": 11,
+      "openapi-drift-not-evaluated": 1,
+      "openapi-not-present": 10,
+      "source-scan-not-configured": 1
+    },
+    "perEcosystem": {
+      "csharp": {
+        "repositories": 1,
+        "filesScanned": 32,
+        "occurrenceCount": 3,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 3
+      },
+      "go": {
+        "repositories": 1,
+        "filesScanned": 16,
+        "occurrenceCount": 9,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 9
+      },
+      "java": {
+        "repositories": 1,
+        "filesScanned": 3,
+        "occurrenceCount": 0,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 0
+      },
+      "kotlin": {
+        "repositories": 1,
+        "filesScanned": 27,
+        "occurrenceCount": 4,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 4
+      },
+      "openapi": {
+        "repositories": 1,
+        "filesScanned": 0,
+        "occurrenceCount": 0,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 0
+      },
+      "python": {
+        "repositories": 2,
+        "filesScanned": 146,
+        "occurrenceCount": 7,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 7
+      },
+      "typescript-javascript": {
+        "repositories": 4,
+        "filesScanned": 111,
+        "occurrenceCount": 13,
+        "structuredOccurrences": 0,
+        "unstructuredOccurrences": 13
+      }
+    }
+  }
+}

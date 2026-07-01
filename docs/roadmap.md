@@ -11,10 +11,11 @@ Each item is sized to become one focused issue or pull request. Milestones descr
 
 ## Next minor — benchmark and fixture maturity
 
-1. Expand each language corpus with two real framework-version profiles and one negative/noise fixture; record framework and parser versions in the manifest.
+1. Expand the external benchmark through a richer manifest that records repository identity, pinned commits, SPDX/license hashes, framework/category, scan profile, expected limitations, and excluded-candidate reasons.
 2. Add opt-in benchmark profiles for committed OpenAPI, catalog, and baseline files so those metrics are populated only when artifacts genuinely exist.
 3. Add dataset-to-dataset trend comparison keyed by immutable target/commit coordinates; never retain removed raw findings.
-4. Publish immutable JSON and generated summary pages through GitHub Pages, with CI deploying only schema/privacy-validated artifacts.
+4. Expand each language corpus with two real framework-version profiles and one negative/noise fixture; record framework and parser versions in the manifest.
+5. Publish immutable JSON and generated summary pages only after broader validation; avoid website/public-launch work in v0.7.0.
 
 ## Following minor — adapters, runtime, and OpenTelemetry
 

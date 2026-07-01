@@ -15,7 +15,7 @@ const filename = path.resolve(
 const dataset = JSON.parse(await readFile(filename, "utf8"));
 
 if (
-  ![1, 2, 3].includes(dataset.schemaVersion) ||
+  ![1, 2, 3, 4].includes(dataset.schemaVersion) ||
   !Array.isArray(dataset.repositories)
 ) {
   throw new Error(
@@ -31,28 +31,26 @@ if (repository && rows.length === 0) {
 }
 
 const metricRows =
-  dataset.schemaVersion === 3 ? rows.map((row) => row.metrics) : rows;
+  dataset.schemaVersion >= 3 ? rows.map((row) => row.metrics) : rows;
 const filesScanned = sum(metricRows, "filesScanned");
 const structuredErrors = sum(
   metricRows,
-  dataset.schemaVersion === 3 ? "structuredOccurrences" : "structuredErrors",
+  dataset.schemaVersion >= 3 ? "structuredOccurrences" : "structuredErrors",
 );
 const unstructuredErrors = sum(
   metricRows,
-  dataset.schemaVersion === 3
-    ? "unstructuredOccurrences"
-    : "unstructuredErrors",
+  dataset.schemaVersion >= 3 ? "unstructuredOccurrences" : "unstructuredErrors",
 );
 const totalErrors = structuredErrors + unstructuredErrors;
 const uniqueStructuredCodes = sum(
   metricRows,
-  dataset.schemaVersion === 3
+  dataset.schemaVersion >= 3
     ? "uniqueStructuredIdentities"
     : "uniqueStructuredCodes",
 );
 const documentedStructuredCodes = sum(
   metricRows,
-  dataset.schemaVersion === 3
+  dataset.schemaVersion >= 3
     ? "documentedStructuredIdentities"
     : "documentedStructuredCodes",
 );
@@ -80,6 +78,17 @@ const result = {
       documentedStructuredCodes,
       uniqueStructuredCodes,
     ),
+    ...(dataset.schemaVersion === 4
+      ? {
+          ecosystems: mergeCounts(rows, "ecosystems", "ecosystem"),
+          apiResponseOccurrences: sum(metricRows, "apiResponseOccurrences"),
+          openapiDocumentCount: sum(metricRows, "openapiDocumentCount"),
+          confidenceDistribution: mergeCounts(
+            metricRows,
+            "confidenceDistribution",
+          ),
+        }
+      : {}),
     statusFamilies,
   },
 };
@@ -103,6 +112,10 @@ function mergeCounts(items, preferredKey, fallbackKey) {
       for (const [family, count] of Object.entries(item[preferredKey])) {
         counts[family] = (counts[family] ?? 0) + count;
       }
+      continue;
+    }
+    if (fallbackKey && typeof item[fallbackKey] === "string") {
+      counts[item[fallbackKey]] = (counts[item[fallbackKey]] ?? 0) + 1;
       continue;
     }
     for (const [status, count] of Object.entries(item[fallbackKey] ?? {})) {

@@ -46,6 +46,34 @@ describe("benchmark data validation", () => {
     const filename = await temporaryDataset(dataset);
     await expect(run(filename)).rejects.toThrow(/commit is inconsistent/);
   });
+
+  it("validates the v2 benchmark manifest schema and policy", async () => {
+    const result = await exec(process.execPath, [
+      "scripts/check-benchmark-data.mjs",
+      "data/external-benchmark-v3.json",
+    ]);
+    expect(result.stdout).toContain("schema v3");
+  });
+
+  it("rejects privacy-sensitive string values, not only field names", async () => {
+    const dataset = JSON.parse(
+      await readFile("data/external-benchmark-v3.json", "utf8"),
+    );
+    dataset.privacy.excluded[0] = "throw new Error('private source text')";
+    const filename = await temporaryDataset(dataset);
+    await expect(run(filename)).rejects.toThrow(/source-like snippet/);
+  });
+
+  it("rejects local paths, repository paths, and email-like values", async () => {
+    const dataset = JSON.parse(
+      await readFile("data/external-benchmark-v3.json", "utf8"),
+    );
+    dataset.privacy.excluded[0] = "/Users/example/private/project/src/api.ts";
+    dataset.privacy.excluded[1] = "src/payments/errors.ts";
+    dataset.privacy.excluded[2] = "owner@example.com";
+    const filename = await temporaryDataset(dataset);
+    await expect(run(filename)).rejects.toThrow(/privacy-sensitive/);
+  });
 });
 
 async function run(filename: string) {

@@ -4,6 +4,18 @@ All notable changes to this project will be documented here. The format follows 
 
 ## [Unreleased]
 
+### Added
+
+- Started the v0.7.0 benchmark foundation with a richer external benchmark manifest, schema v4 aggregate snapshot model, summary artifact schema, and manual full-benchmark workflow.
+
+### Changed
+
+- External benchmark generation now keeps the v0.6.0 v3 snapshot backward-compatible while defaulting new runs to the v0.7.0 manifest and aggregate-only v4 snapshot.
+
+### Security
+
+- Strengthened benchmark privacy validation with value-level checks for source-like snippets, repository paths, local paths, email-like values, stack traces, and secret-bearing fields.
+
 ## [0.6.0] - 2026-07-02
 
 ### Added

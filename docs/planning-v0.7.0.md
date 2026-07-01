@@ -51,6 +51,17 @@ Every target must be reviewable before scanning:
 - Optional full benchmark workflow if runtime and GitHub Actions cost stay modest.
 - Regression fixtures for every detector bug found during benchmark review.
 
+## First implementation PR
+
+The first v0.7.0 PR should establish the benchmark foundation rather than maximize repository count:
+
+- keep the v0.6.0 v3 snapshot readable;
+- add a richer manifest with public provenance, scan profiles, and excluded-candidate reasons;
+- add an aggregate-only v4 snapshot and summary artifact;
+- validate committed artifacts in normal CI without network cloning;
+- keep full external benchmark generation manual or workflow-dispatch;
+- avoid detector changes unless a bounded benchmark bug has a paired positive and negative fixture.
+
 ## Issue-sized tasks
 
 1. Expand the allowlist with 2-3 repositories per target category.
