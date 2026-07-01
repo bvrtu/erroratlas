@@ -1,6 +1,6 @@
 # ErrorAtlas 0.6.0 release-candidate audit
 
-> Candidate document only. ErrorAtlas 0.6.0 has not been published to npm, tagged, or released on GitHub.
+> Candidate audit written before publication. After `v0.6.0` is released, treat the GitHub Release and npm registry entry as the canonical publication record.
 
 ## Candidate scope
 
@@ -36,4 +36,4 @@ The change is minor because it adds backward-compatible, user-visible proof outp
 
 ## Release state
 
-The candidate can be merged after CI and maintainer review. Publishing to npm, creating `v0.6.0`, and creating a GitHub Release are separate, intentionally deferred maintainer actions.
+At candidate freeze, the PR was ready to merge after CI and maintainer review. Publishing to npm, creating `v0.6.0`, and creating a GitHub Release were intentionally deferred until post-merge verification.

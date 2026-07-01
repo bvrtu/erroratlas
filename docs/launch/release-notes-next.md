@@ -1,6 +1,6 @@
 # Draft release notes — ErrorAtlas 0.6.0
 
-> Draft launch material. This describes the current unreleased candidate; it is not a publication announcement.
+> Draft launch material. This was drafted from the release candidate; verify final links and registry status before external publication.
 
 ## Highlights
 
